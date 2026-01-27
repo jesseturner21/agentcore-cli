@@ -1,0 +1,1 @@
+export { registerAttach } from './command';

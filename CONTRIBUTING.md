@@ -54,6 +54,59 @@ opensource-codeofconduct@amazon.com with any additional questions or comments.
 If you discover a potential security issue in this project we ask that you notify AWS/Amazon Security via our [vulnerability reporting page](http://aws.amazon.com/security/vulnerability-reporting/). Please do **not** create a public github issue.
 
 
+## Development Setup
+
+### Prerequisites
+
+- Node.js 20+
+- Bun (for CLI bundling)
+- npm
+
+### Building
+
+```bash
+npm install
+npm run build
+```
+
+### Local Development with CDK Package
+
+If you're also developing the CDK package (`@aws/agentcore-l3-cdk-constructs`):
+
+```bash
+# In the CDK package directory
+npm link
+
+# In this directory
+npm link @aws/agentcore-l3-cdk-constructs
+```
+
+### Testing End-to-End
+
+1. Create a test project:
+
+```bash
+cd /tmp && mkdir test-project && cd test-project
+agentcore-cli create
+```
+
+2. Link local CDK package in vended CDK:
+
+```bash
+cd agentcore/cdk
+npm link @aws/agentcore-l3-cdk-constructs
+```
+
+3. Test synth:
+
+```bash
+npm run cdk synth
+```
+
+## Related Packages
+
+- `@aws/agentcore-l3-cdk-constructs` - CDK constructs used by vended projects
+
 ## Licensing
 
 See the [LICENSE](LICENSE) file for our project's licensing. We will ask you to confirm the licensing of your contribution.

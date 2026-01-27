@@ -1,0 +1,197 @@
+import { ProjectNameSchema } from '../../../../schema';
+import { type NextStep, NextSteps, Screen, SelectList, StepProgress, TextInput } from '../../components';
+import { HELP_TEXT } from '../../constants';
+import { useListNavigation } from '../../hooks';
+import { STATUS_COLORS } from '../../theme';
+import { GenerateWizardStepIndicator, GenerateWizardUI, getWizardHelpText } from '../generate/GenerateWizardUI';
+import { useCreateFlow } from './useCreateFlow';
+import { Box, Text } from 'ink';
+import { join } from 'path';
+
+type NextCommand = 'dev' | 'deploy';
+
+interface NavigateParams {
+  command: NextCommand;
+  workingDir: string;
+}
+
+interface CreateScreenProps {
+  cwd: string;
+  /** Whether running in interactive TUI mode (from App.tsx) vs CLI mode */
+  isInteractive: boolean;
+  onExit: () => void;
+  onShellCommand?: (command: string) => void;
+  onNavigate?: (params: NavigateParams) => void;
+}
+
+/** Next steps shown after successful project creation */
+const CREATE_NEXT_STEPS: NextStep[] = [
+  { command: 'dev', label: 'Run agent locally' },
+  { command: 'deploy', label: 'Deploy to AWS' },
+];
+
+const CREATE_PROMPT_ITEMS = [
+  { id: 'yes', title: 'Yes, create an agent' },
+  { id: 'no', title: "No, I'll do it later" },
+];
+
+export function CreateScreen({ cwd, isInteractive, onExit, onNavigate }: CreateScreenProps) {
+  const flow = useCreateFlow(cwd);
+  // Project root is cwd/projectName (new project directory)
+  const projectRoot = join(cwd, flow.projectName);
+
+  // Create prompt navigation
+  const { selectedIndex: createPromptIndex } = useListNavigation({
+    items: CREATE_PROMPT_ITEMS,
+    onSelect: item => {
+      flow.setWantsCreate(item.id === 'yes');
+    },
+    onExit,
+    isActive: flow.phase === 'create-prompt',
+  });
+
+  // Completion state for next steps
+  const allSuccess = !flow.hasError && flow.isComplete;
+
+  // Checking phase: brief loading state
+  if (flow.phase === 'checking') {
+    return (
+      <Screen title="AgentCore Create" onExit={onExit}>
+        <Text dimColor>Checking for existing project...</Text>
+      </Screen>
+    );
+  }
+
+  // Existing project error phase
+  if (flow.phase === 'existing-project-error') {
+    return (
+      <Screen title="AgentCore Create" onExit={onExit} helpText="Press Esc to exit">
+        <Box marginBottom={1} flexDirection="column">
+          <Text color="red">A project already exists at this location.</Text>
+          {flow.existingProjectPath && <Text dimColor>Found: {flow.existingProjectPath}</Text>}
+          <Box marginTop={1}>
+            <Text>
+              Use <Text color="cyan">add agent</Text> to create a new agent in the existing project.
+            </Text>
+          </Box>
+        </Box>
+      </Screen>
+    );
+  }
+
+  // Input phase: ask for project name
+  if (flow.phase === 'input') {
+    return (
+      <Screen title="AgentCore Create" onExit={onExit} helpText={HELP_TEXT.TEXT_INPUT}>
+        <Box marginBottom={1}>
+          <Text>Create a new AgentCore project</Text>
+        </Box>
+        <TextInput
+          prompt="Project name"
+          initialValue={flow.projectName}
+          schema={ProjectNameSchema}
+          onSubmit={name => {
+            flow.setProjectName(name);
+            flow.confirmProjectName();
+          }}
+          onCancel={onExit}
+        />
+      </Screen>
+    );
+  }
+
+  // Create prompt phase
+  if (flow.phase === 'create-prompt') {
+    return (
+      <Screen title="AgentCore Create" onExit={onExit} helpText={HELP_TEXT.NAVIGATE_SELECT}>
+        <Box marginBottom={1}>
+          <Text>
+            Project: <Text color={STATUS_COLORS.success}>{flow.projectName}</Text>
+          </Text>
+        </Box>
+        <Box flexDirection="column">
+          <Text>Would you like to create an agent now?</Text>
+          <Box marginTop={1}>
+            <SelectList items={CREATE_PROMPT_ITEMS} selectedIndex={createPromptIndex} />
+          </Box>
+        </Box>
+      </Screen>
+    );
+  }
+
+  // Create wizard phase
+  if (flow.phase === 'create-wizard') {
+    const headerContent = (
+      <Box flexDirection="column">
+        <Box marginBottom={1}>
+          <Text>
+            Project: <Text color={STATUS_COLORS.success}>{flow.projectName}</Text>
+          </Text>
+        </Box>
+        <GenerateWizardStepIndicator wizard={flow.wizard} />
+      </Box>
+    );
+
+    return (
+      <Screen
+        title="AgentCore Create"
+        onExit={flow.goBackFromWizard}
+        helpText={getWizardHelpText(flow.wizard.step)}
+        headerContent={headerContent}
+      >
+        <GenerateWizardUI
+          wizard={flow.wizard}
+          onBack={flow.goBackFromWizard}
+          onConfirm={flow.confirmCreate}
+          isActive={true}
+        />
+      </Screen>
+    );
+  }
+
+  // Running/complete phase: show progress
+  const headerContent = (
+    <Box marginTop={1}>
+      <Text>
+        Project: <Text color={STATUS_COLORS.success}>{flow.projectName}</Text>
+      </Text>
+    </Box>
+  );
+
+  const helpText =
+    allSuccess && isInteractive ? HELP_TEXT.NAVIGATE_SELECT : flow.hasError || allSuccess ? HELP_TEXT.EXIT : undefined;
+
+  return (
+    <Screen title="AgentCore Create" onExit={onExit} headerContent={headerContent} helpText={helpText}>
+      <StepProgress steps={flow.steps} />
+      {allSuccess && flow.outputDir && (
+        <Box marginTop={1} flexDirection="column">
+          <Text color={STATUS_COLORS.success}>
+            Created at <Text bold>{projectRoot}</Text>
+          </Text>
+          {isInteractive && (
+            <Box marginLeft={2} marginTop={1}>
+              <Text dimColor>cd {flow.projectName}</Text>
+            </Box>
+          )}
+          <NextSteps
+            steps={CREATE_NEXT_STEPS}
+            isInteractive={isInteractive}
+            onSelect={step => {
+              if (onNavigate) {
+                onNavigate({ command: step.command as NextCommand, workingDir: projectRoot });
+              }
+            }}
+            onBack={onExit}
+            isActive={allSuccess}
+          />
+        </Box>
+      )}
+      {flow.hasError && (
+        <Box marginTop={1}>
+          <Text color={STATUS_COLORS.error}>Project creation failed.</Text>
+        </Box>
+      )}
+    </Screen>
+  );
+}

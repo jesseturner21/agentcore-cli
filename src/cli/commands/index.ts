@@ -1,0 +1,16 @@
+// Command registrations
+export { registerAdd } from './add';
+export { registerDeploy } from './deploy';
+export { registerDev } from './dev';
+export { registerEdit } from './edit';
+export { registerCreate } from './create';
+export { registerInvoke } from './invoke';
+export { registerOutline } from './outline';
+export { registerPackage } from './package';
+export { registerPlan } from './plan';
+export { registerRemove } from './remove';
+export { registerStatus } from './status';
+export { registerUpdate } from './update';
+
+// Dev server utilities (re-exported from operations)
+export { findAvailablePort, spawnDevServer, killServer, type LogLevel, type DevServerCallbacks } from './dev';

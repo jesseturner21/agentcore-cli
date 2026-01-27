@@ -1,0 +1,1 @@
+export { registerOutline } from './command';

@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ name }}"
+version = "0.1.0"
+description = "Lambda tools for AgentCore Gateway"
+readme = "README.md"
+requires-python = ">=3.10"
+# No external dependencies - uses stdlib only
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

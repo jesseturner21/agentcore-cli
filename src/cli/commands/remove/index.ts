@@ -1,0 +1,1 @@
+export { registerRemove } from './command';

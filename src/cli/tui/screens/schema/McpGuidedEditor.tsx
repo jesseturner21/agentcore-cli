@@ -1,0 +1,656 @@
+import {
+  type AgentCoreGateway,
+  type AgentCoreMcpRuntimeTool,
+  type AgentCoreMcpSpec,
+  AgentCoreMcpSpecSchema,
+  GatewayNameSchema,
+} from '../../../../schema';
+import { Header, Panel, ScreenLayout, TextInput } from '../../components';
+import { useSchemaDocument } from '../../hooks/useSchemaDocument';
+import { diffLines } from '../../utils';
+import { Box, Text, useInput } from 'ink';
+import React, { useState } from 'react';
+
+interface SchemaOption {
+  id: string;
+  title: string;
+  filePath: string;
+}
+
+interface McpGuidedEditorProps {
+  schema: SchemaOption;
+  onBack: () => void;
+  onRequestAdd?: () => void;
+}
+
+export function McpGuidedEditor(props: McpGuidedEditorProps) {
+  const { content, status, save } = useSchemaDocument(props.schema.filePath, AgentCoreMcpSpecSchema);
+
+  if (status.status === 'loading') {
+    return (
+      <ScreenLayout onExit={props.onBack}>
+        <Header title="Edit MCP Config" subtitle="Loading..." />
+        <Text dimColor>Loading MCP config from disk.</Text>
+      </ScreenLayout>
+    );
+  }
+
+  if (status.status === 'error') {
+    return (
+      <ScreenLayout onExit={props.onBack}>
+        <Header title="Edit MCP Config" subtitle="Error" />
+        <Box flexDirection="column">
+          <Text color="red">Unable to load mcp.json</Text>
+          <Text dimColor>{status.message ?? 'Unknown error'}</Text>
+          <Text dimColor>Esc back</Text>
+        </Box>
+      </ScreenLayout>
+    );
+  }
+
+  let mcpSpec: AgentCoreMcpSpec = { agentCoreGateways: [] };
+  try {
+    const parsed: unknown = JSON.parse(content);
+    const result = AgentCoreMcpSpecSchema.safeParse(parsed);
+    if (result.success) {
+      mcpSpec = result.data;
+    }
+  } catch {
+    // Will show empty gateways
+  }
+
+  const baseline = JSON.stringify(mcpSpec, null, 2);
+
+  return (
+    <McpEditorBody
+      key={content}
+      schema={props.schema}
+      initialSpec={mcpSpec}
+      baseline={baseline}
+      onBack={props.onBack}
+      onSave={save}
+      onRequestAdd={props.onRequestAdd}
+    />
+  );
+}
+
+type ViewMode = 'gateways' | 'mcp-runtime';
+type ScreenMode = 'list' | 'confirm-exit' | 'edit-item' | 'edit-field' | 'edit-targets' | 'edit-target-field';
+
+function McpEditorBody(props: {
+  schema: SchemaOption;
+  initialSpec: AgentCoreMcpSpec;
+  baseline: string;
+  onBack: () => void;
+  onSave: (content: string) => Promise<{ ok: boolean; error?: string }>;
+  onRequestAdd?: () => void;
+}) {
+  const [gateways, setGateways] = useState<AgentCoreGateway[]>(props.initialSpec.agentCoreGateways);
+  const [mcpRuntimeTools, setMcpRuntimeTools] = useState<AgentCoreMcpRuntimeTool[]>(
+    props.initialSpec.mcpRuntimeTools ?? []
+  );
+  const [viewMode, setViewMode] = useState<ViewMode>('gateways');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [screenMode, setScreenMode] = useState<ScreenMode>('list');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Edit item state
+  const [editFieldIndex, setEditFieldIndex] = useState(0);
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+  // Target editing state
+  const [selectedTargetIndex, setSelectedTargetIndex] = useState(0);
+  const [editingTargetFieldId, setEditingTargetFieldId] = useState<string | null>(null);
+
+  const hasMcpRuntimeTools = mcpRuntimeTools.length > 0 || (props.initialSpec.mcpRuntimeTools?.length ?? 0) > 0;
+
+  // Define editable fields for the current item
+  const currentGateway = viewMode === 'gateways' ? gateways[selectedIndex] : null;
+  const targetCount = currentGateway?.targets?.length ?? 0;
+  const gatewayFields = [
+    { id: 'name', label: 'Name' },
+    { id: 'description', label: 'Description' },
+    { id: 'targets', label: `Targets (${targetCount})` },
+  ];
+  const mcpRuntimeFields = [{ id: 'name', label: 'Name' }];
+  const currentFields = viewMode === 'gateways' ? gatewayFields : mcpRuntimeFields;
+
+  // Target fields
+  const targetFields = [{ id: 'targetName', label: 'Target Name' }];
+
+  async function commitChanges() {
+    const spec: AgentCoreMcpSpec = {
+      agentCoreGateways: gateways,
+      ...(mcpRuntimeTools.length > 0 ? { mcpRuntimeTools: mcpRuntimeTools } : {}),
+    };
+    const content = JSON.stringify(spec, null, 2);
+    const result = await props.onSave(content);
+    if (result.ok) {
+      props.onBack();
+    } else {
+      setSaveError(result.error ?? 'Failed to save');
+    }
+  }
+
+  useInput((input, key) => {
+    // Handle confirm-exit screen
+    if (screenMode === 'confirm-exit') {
+      if (input.toLowerCase() === 'y') {
+        void commitChanges();
+        return;
+      }
+      if (input.toLowerCase() === 'n' || key.escape) {
+        props.onBack(); // Discard and exit
+        return;
+      }
+      return;
+    }
+
+    // Handle edit-item screen (field selection)
+    if (screenMode === 'edit-item') {
+      if (key.escape) {
+        setScreenMode('list');
+        return;
+      }
+      if (key.upArrow) {
+        setEditFieldIndex(idx => Math.max(0, idx - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setEditFieldIndex(idx => Math.min(currentFields.length - 1, idx + 1));
+        return;
+      }
+      if (key.return) {
+        const field = currentFields[editFieldIndex];
+        if (field) {
+          if (field.id === 'targets') {
+            // Go to targets list
+            setSelectedTargetIndex(0);
+            setScreenMode('edit-targets');
+          } else {
+            setEditingFieldId(field.id);
+            setScreenMode('edit-field');
+          }
+        }
+        return;
+      }
+      return;
+    }
+
+    // Handle edit-field screen (text input handles its own input)
+    if (screenMode === 'edit-field') {
+      return;
+    }
+
+    // Handle edit-targets screen (target selection)
+    if (screenMode === 'edit-targets') {
+      const targets = currentGateway?.targets ?? [];
+      if (key.escape) {
+        setScreenMode('edit-item');
+        return;
+      }
+      if (key.upArrow && targets.length > 0) {
+        setSelectedTargetIndex(idx => Math.max(0, idx - 1));
+        return;
+      }
+      if (key.downArrow && targets.length > 0) {
+        setSelectedTargetIndex(idx => Math.min(targets.length - 1, idx + 1));
+        return;
+      }
+      if (key.return && targets.length > 0) {
+        setEditingTargetFieldId('toolName');
+        setScreenMode('edit-target-field');
+        return;
+      }
+      return;
+    }
+
+    // Handle edit-target-field screen (text input handles its own input)
+    if (screenMode === 'edit-target-field') {
+      return;
+    }
+
+    // List mode keys
+    if (key.escape) {
+      if (expandedIndex !== null) {
+        setExpandedIndex(null);
+        return;
+      }
+      if (dirty) {
+        setScreenMode('confirm-exit');
+        return;
+      }
+      props.onBack();
+      return;
+    }
+
+    // Tab to switch between gateways and mcp-runtime views
+    if (key.tab && hasMcpRuntimeTools) {
+      setViewMode(prev => (prev === 'gateways' ? 'mcp-runtime' : 'gateways'));
+      setSelectedIndex(0);
+      setExpandedIndex(null);
+      return;
+    }
+
+    // A to add (works in both views)
+    if (input.toLowerCase() === 'a' && props.onRequestAdd) {
+      props.onRequestAdd();
+      return;
+    }
+
+    // View-specific navigation and actions
+    const items = viewMode === 'gateways' ? gateways : mcpRuntimeTools;
+    const itemCount = items.length;
+
+    if (key.upArrow && itemCount > 0) {
+      setSelectedIndex(idx => (idx - 1 + itemCount) % itemCount);
+      return;
+    }
+
+    if (key.downArrow && itemCount > 0) {
+      setSelectedIndex(idx => (idx + 1) % itemCount);
+      return;
+    }
+
+    // Space to toggle expand (show targets/details)
+    if (input === ' ' && itemCount > 0) {
+      setExpandedIndex(prev => (prev === selectedIndex ? null : selectedIndex));
+      return;
+    }
+
+    // Enter to edit the selected item
+    if (key.return && itemCount > 0) {
+      setEditFieldIndex(0);
+      setScreenMode('edit-item');
+      return;
+    }
+
+    // D to delete
+    if (input.toLowerCase() === 'd' && itemCount > 0) {
+      if (viewMode === 'gateways') {
+        const next = gateways.filter((_, idx) => idx !== selectedIndex);
+        setGateways(next);
+      } else {
+        const next = mcpRuntimeTools.filter((_, idx) => idx !== selectedIndex);
+        setMcpRuntimeTools(next);
+      }
+      setSelectedIndex(prev => Math.max(0, Math.min(prev, itemCount - 2)));
+      setExpandedIndex(null);
+      setDirty(true);
+      return;
+    }
+  });
+
+  // Edit item screen - shows list of editable fields
+  if (screenMode === 'edit-item') {
+    const currentGateway = viewMode === 'gateways' ? gateways[selectedIndex] : null;
+    const currentTool = viewMode === 'mcp-runtime' ? mcpRuntimeTools[selectedIndex] : null;
+    const itemName = currentGateway?.name ?? currentTool?.name ?? 'Unknown';
+
+    return (
+      <ScreenLayout>
+        <Header title={`Edit ${viewMode === 'gateways' ? 'Gateway' : 'Tool'}`} subtitle={itemName} />
+        <Box flexDirection="column" marginTop={1}>
+          <Text dimColor>↑↓ navigate · Enter edit · Esc back</Text>
+          <Box marginTop={1} flexDirection="column">
+            {currentFields.map((field, idx) => {
+              const selected = idx === editFieldIndex;
+              let value = '';
+              if (viewMode === 'gateways' && currentGateway) {
+                if (field.id === 'name') value = currentGateway.name;
+                if (field.id === 'description') value = currentGateway.description ?? '';
+              } else if (currentTool) {
+                if (field.id === 'name') value = currentTool.name;
+              }
+              return (
+                <Box key={field.id} gap={1}>
+                  <Text color={selected ? 'cyan' : undefined}>{selected ? '❯' : ' '}</Text>
+                  <Box width={14}>
+                    <Text bold={selected} color={selected ? 'cyan' : undefined}>
+                      {field.label}
+                    </Text>
+                  </Box>
+                  <Text dimColor>{value || '(empty)'}</Text>
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+      </ScreenLayout>
+    );
+  }
+
+  // Edit field screen - text input for the selected field
+  if (screenMode === 'edit-field' && editingFieldId) {
+    const currentGateway = viewMode === 'gateways' ? gateways[selectedIndex] : null;
+    const currentTool = viewMode === 'mcp-runtime' ? mcpRuntimeTools[selectedIndex] : null;
+    const field = currentFields.find(f => f.id === editingFieldId);
+
+    if (!field) {
+      setScreenMode('edit-item');
+      return null;
+    }
+
+    let initialValue = '';
+    if (viewMode === 'gateways' && currentGateway) {
+      if (editingFieldId === 'name') initialValue = currentGateway.name;
+      if (editingFieldId === 'description') initialValue = currentGateway.description ?? '';
+    } else if (currentTool) {
+      if (editingFieldId === 'name') initialValue = currentTool.name;
+    }
+
+    const handleSubmit = (value: string) => {
+      if (viewMode === 'gateways') {
+        if (editingFieldId === 'name') {
+          const next = gateways.map((g, idx) => (idx === selectedIndex ? { ...g, name: value } : g));
+          setGateways(next);
+        } else if (editingFieldId === 'description') {
+          const next = gateways.map((g, idx) =>
+            idx === selectedIndex ? { ...g, description: value || undefined } : g
+          );
+          setGateways(next);
+        }
+      } else {
+        if (editingFieldId === 'name') {
+          const next = mcpRuntimeTools.map((t, idx) => (idx === selectedIndex ? { ...t, name: value } : t));
+          setMcpRuntimeTools(next);
+        }
+      }
+      setDirty(true);
+      setEditingFieldId(null);
+      setScreenMode('edit-item');
+    };
+
+    const isGatewayName = viewMode === 'gateways' && editingFieldId === 'name';
+    const isToolName = viewMode === 'mcp-runtime' && editingFieldId === 'name';
+
+    // Get existing names (excluding current) for uniqueness check
+    let existingNames: string[] = [];
+    if (isGatewayName) {
+      existingNames = gateways.filter((_, idx) => idx !== selectedIndex).map(g => g.name);
+    } else if (isToolName) {
+      existingNames = mcpRuntimeTools.filter((_, idx) => idx !== selectedIndex).map(t => t.name);
+    }
+
+    const customValidation =
+      isGatewayName || isToolName
+        ? (value: string) =>
+            !existingNames.includes(value) || `${isGatewayName ? 'Gateway' : 'Tool'} name already exists`
+        : undefined;
+
+    return (
+      <ScreenLayout>
+        <Header title={`Edit ${field.label}`} subtitle={props.schema.title} />
+        <Box marginTop={1}>
+          <TextInput
+            prompt={field.label}
+            initialValue={initialValue}
+            placeholder={editingFieldId === 'description' ? 'Optional description' : undefined}
+            schema={isGatewayName ? GatewayNameSchema : undefined}
+            customValidation={customValidation}
+            onSubmit={handleSubmit}
+            onCancel={() => {
+              setEditingFieldId(null);
+              setScreenMode('edit-item');
+            }}
+          />
+        </Box>
+      </ScreenLayout>
+    );
+  }
+
+  // Edit targets screen - shows list of targets in the current gateway
+  if (screenMode === 'edit-targets') {
+    const gateway = viewMode === 'gateways' ? gateways[selectedIndex] : null;
+    const targets = gateway?.targets ?? [];
+
+    return (
+      <ScreenLayout>
+        <Header title="Edit Targets" subtitle={gateway?.name ?? 'Gateway'} />
+        <Box flexDirection="column" marginTop={1}>
+          <Text dimColor>↑↓ navigate · Enter edit · Esc back</Text>
+          <Box marginTop={1} flexDirection="column">
+            {targets.length === 0 ? (
+              <Text dimColor>No targets configured for this gateway.</Text>
+            ) : (
+              targets.map((target, idx) => {
+                const selected = idx === selectedTargetIndex;
+                const targetName = target.name ?? `Target ${idx + 1}`;
+                const toolCount = target.toolDefinitions?.length ?? 0;
+                const host = target.compute?.host ?? target.targetType;
+                return (
+                  <Box key={idx} gap={1}>
+                    <Text color={selected ? 'cyan' : undefined}>{selected ? '❯' : ' '}</Text>
+                    <Text bold={selected} color={selected ? 'cyan' : undefined}>
+                      {targetName}
+                    </Text>
+                    <Text dimColor>
+                      ({toolCount} tools · {host})
+                    </Text>
+                  </Box>
+                );
+              })
+            )}
+          </Box>
+        </Box>
+      </ScreenLayout>
+    );
+  }
+
+  // Edit target field screen - text input for the selected target field
+  if (screenMode === 'edit-target-field' && editingTargetFieldId) {
+    const gateway = viewMode === 'gateways' ? gateways[selectedIndex] : null;
+    const target = gateway?.targets?.[selectedTargetIndex];
+    const field = targetFields.find(f => f.id === editingTargetFieldId);
+
+    if (!field || !target) {
+      setScreenMode('edit-targets');
+      return null;
+    }
+
+    let initialValue = '';
+    if (editingTargetFieldId === 'targetName') {
+      initialValue = target.name ?? '';
+    }
+
+    const handleSubmit = (value: string) => {
+      if (viewMode === 'gateways' && gateway) {
+        const updatedTargets = [...(gateway.targets ?? [])];
+        const targetToUpdate = updatedTargets[selectedTargetIndex];
+        if (targetToUpdate && editingTargetFieldId === 'targetName') {
+          updatedTargets[selectedTargetIndex] = {
+            ...targetToUpdate,
+            name: value,
+          };
+          const next = gateways.map((g, idx) => (idx === selectedIndex ? { ...g, targets: updatedTargets } : g));
+          setGateways(next);
+          setDirty(true);
+        }
+      }
+      setEditingTargetFieldId(null);
+      setScreenMode('edit-targets');
+    };
+
+    return (
+      <ScreenLayout>
+        <Header title={`Edit ${field.label}`} subtitle={target.name ?? 'Target'} />
+        <Box marginTop={1}>
+          <TextInput
+            prompt={field.label}
+            initialValue={initialValue}
+            placeholder="Tool name"
+            onSubmit={handleSubmit}
+            onCancel={() => {
+              setEditingTargetFieldId(null);
+              setScreenMode('edit-targets');
+            }}
+          />
+        </Box>
+      </ScreenLayout>
+    );
+  }
+
+  // Confirm exit screen
+  if (screenMode === 'confirm-exit') {
+    const spec: AgentCoreMcpSpec = {
+      agentCoreGateways: gateways,
+      ...(mcpRuntimeTools.length > 0 ? { mcpRuntimeTools: mcpRuntimeTools } : {}),
+    };
+    const currentText = JSON.stringify(spec, null, 2);
+    const diffOps = diffLines(props.baseline.split('\n'), currentText.split('\n'));
+    const changedLines = diffOps.filter(line => line.color);
+
+    return (
+      <ScreenLayout>
+        <Header title="Unsaved Changes" subtitle={props.schema.title} />
+        <Box flexDirection="column" gap={1}>
+          <Text>You have unsaved changes. What would you like to do?</Text>
+
+          <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
+            {changedLines.length === 0 ? (
+              <Text dimColor>No changes to save.</Text>
+            ) : (
+              changedLines.slice(0, 10).map((line, idx) => (
+                <Text key={`${line.value}-${idx}`} color={line.color}>
+                  {line.prefix} {line.value}
+                </Text>
+              ))
+            )}
+            {changedLines.length > 10 && <Text dimColor>... {changedLines.length - 10} more lines</Text>}
+          </Box>
+
+          {saveError && <Text color="red">{saveError}</Text>}
+
+          <Box gap={2}>
+            <Text color="cyan" bold>
+              Y
+            </Text>
+            <Text>Commit changes</Text>
+          </Box>
+          <Box gap={2}>
+            <Text color="cyan" bold>
+              N
+            </Text>
+            <Text>Discard changes</Text>
+          </Box>
+        </Box>
+      </ScreenLayout>
+    );
+  }
+
+  return (
+    <ScreenLayout>
+      <Header title="Edit MCP Config" subtitle={props.schema.title} />
+      <Box flexDirection="column">
+        <Text dimColor>
+          A add · D del · Space expand · Enter edit{hasMcpRuntimeTools ? ' · Tab switch' : ''} · Esc back
+        </Text>
+      </Box>
+
+      {/* Tab bar */}
+      {hasMcpRuntimeTools && (
+        <Box marginTop={1} gap={2}>
+          <Text color={viewMode === 'gateways' ? 'cyan' : undefined} bold={viewMode === 'gateways'}>
+            [Gateways]
+          </Text>
+          <Text color={viewMode === 'mcp-runtime' ? 'cyan' : undefined} bold={viewMode === 'mcp-runtime'}>
+            [MCP Runtime]
+          </Text>
+        </Box>
+      )}
+
+      <Box marginTop={1}>
+        {viewMode === 'gateways' ? (
+          <Panel title={`MCP Gateways (${gateways.length})`} fullWidth>
+            {gateways.length === 0 ? (
+              <Text dimColor>No gateways configured. Press A to add one.</Text>
+            ) : (
+              <Box flexDirection="column">
+                {gateways.map((gateway, idx) => {
+                  const selected = idx === selectedIndex;
+                  const expanded = expandedIndex === idx;
+                  const targetCount = gateway.targets?.length ?? 0;
+                  return (
+                    <Box key={gateway.name} flexDirection="column">
+                      <Box flexDirection="row" gap={1}>
+                        <Text color={selected ? 'cyan' : undefined}>{selected ? '>' : ' '}</Text>
+                        <Text color={selected ? 'cyan' : undefined}>{expanded ? '▼' : '▶'}</Text>
+                        <Text bold={selected} color={selected ? 'cyan' : undefined}>
+                          {gateway.name}
+                        </Text>
+                        <Text dimColor>
+                          ({targetCount} {targetCount === 1 ? 'target' : 'targets'})
+                        </Text>
+                        {gateway.description && <Text dimColor>· {gateway.description}</Text>}
+                      </Box>
+                      {expanded && (
+                        <Box flexDirection="column" marginLeft={4} marginTop={0}>
+                          {targetCount === 0 ? (
+                            <Text dimColor italic>
+                              No targets defined
+                            </Text>
+                          ) : (
+                            gateway.targets.map((target, tIdx) => (
+                              <Box key={tIdx} flexDirection="row" gap={1}>
+                                <Text dimColor>·</Text>
+                                <Text>{target.name ?? `Target ${tIdx + 1}`}</Text>
+                                <Text dimColor>
+                                  ({target.toolDefinitions?.length ?? 0} tools ·{' '}
+                                  {target.compute?.host ?? target.targetType})
+                                </Text>
+                              </Box>
+                            ))
+                          )}
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </Panel>
+        ) : (
+          <Panel title={`MCP Runtime Tools (${mcpRuntimeTools.length})`} fullWidth>
+            {mcpRuntimeTools.length === 0 ? (
+              <Text dimColor>No MCP runtime tools configured.</Text>
+            ) : (
+              <Box flexDirection="column">
+                {mcpRuntimeTools.map((tool, idx) => {
+                  const selected = idx === selectedIndex;
+                  const expanded = expandedIndex === idx;
+                  return (
+                    <Box key={tool.name} flexDirection="column">
+                      <Box flexDirection="row" gap={1}>
+                        <Text color={selected ? 'cyan' : undefined}>{selected ? '>' : ' '}</Text>
+                        <Text color={selected ? 'cyan' : undefined}>{expanded ? '▼' : '▶'}</Text>
+                        <Text bold={selected} color={selected ? 'cyan' : undefined}>
+                          {tool.name}
+                        </Text>
+                        <Text dimColor>[{tool.compute.host}]</Text>
+                      </Box>
+                      {expanded && (
+                        <Box flexDirection="column" marginLeft={4}>
+                          <Text dimColor>Tool: {tool.toolDefinition?.name ?? '(unnamed)'}</Text>
+                          <Text dimColor>Language: {tool.compute.implementation.language}</Text>
+                          {'handler' in tool.compute.implementation && (
+                            <Text dimColor>Handler: {tool.compute.implementation.handler}</Text>
+                          )}
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </Panel>
+        )}
+      </Box>
+
+      {dirty && (
+        <Box marginTop={1}>
+          <Text color="yellow">● Changes pending</Text>
+        </Box>
+      )}
+    </ScreenLayout>
+  );
+}

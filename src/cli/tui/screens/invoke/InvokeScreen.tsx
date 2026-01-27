@@ -1,0 +1,185 @@
+import { GradientText, LogLink, Panel, Screen, ScrollableText, SelectList, TextInput } from '../../components';
+import { useInvokeFlow } from './useInvokeFlow';
+import { Box, Text, useInput } from 'ink';
+import React, { useEffect, useRef, useState } from 'react';
+
+interface InvokeScreenProps {
+  /** Whether running in interactive TUI mode (from App.tsx) vs CLI mode */
+  isInteractive: boolean;
+  onExit: () => void;
+  initialPrompt?: string;
+}
+
+type Mode = 'select-agent' | 'chat' | 'input';
+
+export function InvokeScreen({ isInteractive, onExit, initialPrompt }: InvokeScreenProps) {
+  const { phase, config, selectedAgent, messages, error, logFilePath, selectAgent, invoke } = useInvokeFlow();
+  const [mode, setMode] = useState<Mode>('select-agent');
+  // Track if we've completed one conversation round (for non-interactive exit)
+  const hasCompletedRound = useRef(false);
+
+  // Handle initial prompt - skip agent selection if only one agent
+  useEffect(() => {
+    if (config && phase === 'ready') {
+      if (config.agents.length === 1 && mode === 'select-agent') {
+        // Defer setState to avoid cascading renders within effect
+        queueMicrotask(() => {
+          setMode('chat');
+        });
+        if (initialPrompt && messages.length === 0) {
+          void invoke(initialPrompt);
+        }
+      }
+    }
+  }, [config, phase, initialPrompt, messages.length, invoke, mode]);
+
+  // Non-interactive mode: exit after response completes
+  useEffect(() => {
+    if (!isInteractive && phase === 'ready' && mode === 'chat' && messages.length > 0 && hasCompletedRound.current) {
+      onExit();
+    }
+    if (phase === 'ready' && messages.length > 0) {
+      hasCompletedRound.current = true;
+    }
+  }, [phase, mode, messages.length, isInteractive, onExit]);
+
+  useInput((input, key) => {
+    if (phase === 'loading' || phase === 'error' || !config) return;
+
+    if (key.escape || input === 'q') {
+      if (mode === 'input') {
+        setMode('chat');
+      } else if (mode === 'chat' && config.agents.length > 1) {
+        setMode('select-agent');
+      } else {
+        onExit();
+      }
+      return;
+    }
+
+    if (mode === 'select-agent') {
+      if (key.upArrow) selectAgent((selectedAgent - 1 + config.agents.length) % config.agents.length);
+      if (key.downArrow) selectAgent((selectedAgent + 1) % config.agents.length);
+      if (key.return) setMode('chat');
+    }
+
+    if (mode === 'chat' && input === 'i' && phase === 'ready') {
+      setMode('input');
+    }
+  });
+
+  // Error state - show error in main screen
+  if (phase === 'error') {
+    return (
+      <Screen title="AgentCore Invoke" onExit={onExit}>
+        <Text color="red">{error}</Text>
+      </Screen>
+    );
+  }
+
+  // Still loading - return null to keep previous screen visible (avoids flash)
+  if (phase === 'loading' || !config) {
+    return null;
+  }
+
+  const agent = config.agents[selectedAgent];
+  const agentItems = config.agents.map((a, i) => ({
+    id: String(i),
+    title: a.name,
+    description: `Runtime: ${a.state.runtimeId}`,
+  }));
+
+  // Dynamic help text - show agent name after response
+  const hasResponse = messages.length > 0 && phase === 'ready';
+  const helpText = {
+    'select-agent': '↑↓ select · Enter confirm · q quit',
+    chat: hasResponse ? `↑↓ scroll · i invoke ${agent?.name} again · q back` : 'i invoke · q back',
+    input: 'Enter send · Esc cancel',
+  }[mode];
+
+  const headerContent = (
+    <Box flexDirection="column">
+      <Box>
+        <Text>Project: </Text>
+        <Text color="green">{config.projectName}</Text>
+      </Box>
+      {mode !== 'select-agent' && (
+        <Box>
+          <Text>Agent: </Text>
+          <Text color="cyan">{agent?.name}</Text>
+        </Box>
+      )}
+      <Box>
+        <Text>Target: </Text>
+        <Text color="yellow">{config.target.region}</Text>
+      </Box>
+    </Box>
+  );
+
+  // Agent selection mode
+  if (mode === 'select-agent') {
+    return (
+      <Screen title="AgentCore Invoke" onExit={onExit} helpText={helpText} headerContent={headerContent}>
+        <Panel title="Select Agent" fullWidth>
+          <SelectList items={agentItems} selectedIndex={selectedAgent} />
+        </Panel>
+      </Screen>
+    );
+  }
+
+  // Get the current message pair (user prompt and assistant response)
+  const userMessage = messages.find(m => m.role === 'user');
+  const assistantMessage = messages.find(m => m.role === 'assistant');
+
+  // Don't show previous messages when in input mode (fresh start)
+  const showMessages = mode === 'chat';
+
+  return (
+    <Screen title="AgentCore Invoke" onExit={onExit} helpText={helpText} headerContent={headerContent}>
+      <Box flexDirection="column" flexGrow={1}>
+        {messages.length === 0 && mode === 'chat' && <Text dimColor>Press &apos;i&apos; to send a message</Text>}
+
+        {/* User prompt */}
+        {showMessages && userMessage && (
+          <Box marginBottom={1}>
+            <Text color="blue">&gt; {userMessage.content}</Text>
+          </Box>
+        )}
+
+        {/* Assistant response with scrolling */}
+        {showMessages && assistantMessage?.content && (
+          <Box marginBottom={1} flexDirection="column">
+            <ScrollableText
+              content={assistantMessage.content}
+              color="green"
+              isStreaming={phase === 'invoking'}
+              isActive={mode === 'chat'}
+            />
+          </Box>
+        )}
+
+        {/* Invoking indicator */}
+        {phase === 'invoking' && <GradientText text="Invoking..." />}
+
+        {/* Log file link after response */}
+        {logFilePath && hasResponse && mode === 'chat' && (
+          <Box marginTop={1}>
+            <LogLink filePath={logFilePath} />
+          </Box>
+        )}
+
+        {/* Input prompt */}
+        {mode === 'input' && phase === 'ready' && (
+          <TextInput
+            prompt=""
+            onSubmit={text => {
+              setMode('chat');
+              void invoke(text);
+            }}
+            onCancel={() => setMode('chat')}
+          />
+        )}
+      </Box>
+    </Screen>
+  );
+}

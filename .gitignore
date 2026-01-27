@@ -1,0 +1,60 @@
+# dependencies (bun install)
+node_modules
+
+# output
+dist
+out
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+*.log
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IDEs
+.idea
+.vscode
+.kiro
+.amazonq
+
+# Finder (MacOS) folder config
+.DS_Store
+
+# Testing Directory
+examples
+__pycache__/
+
+# Python build artifacts
+*.egg-info/
+uv.lock
+
+# turbo
+.turbo/
+
+.claude/
+
+# For web harness dev
+.playwright-mcp/
+
+.opencode
+
+workdir-tmp/
+
+# Bun
+bun.lock

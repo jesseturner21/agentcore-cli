@@ -1,0 +1,1 @@
+export { registerAdd } from './command';

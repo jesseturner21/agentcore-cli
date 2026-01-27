@@ -1,0 +1,46 @@
+/**
+ * User-facing copy and text displayed in the TUI.
+ * Centralized here for consistency and easy updates.
+ */
+
+/**
+ * Hint text displayed on main screens.
+ * Uses · as separator for compact, readable hints.
+ */
+export const HINTS = {
+  HOME: 'Type to search, Tab commands, ! shell, Esc quit',
+  COMMANDS: 'Type to filter, ↑↓ navigate, Enter select, ! shell, Esc back',
+} as const;
+
+/**
+ * Quick start command descriptions shown on home screen.
+ */
+export const QUICK_START = {
+  create: 'Create a new AgentCore project',
+  add: 'Add agents and environment resources',
+  deploy: 'Deploy project to AWS',
+  tip: 'Coding agents can implement project and config changes',
+} as const;
+
+/**
+ * Command descriptions used in CLI help and TUI.
+ */
+export const COMMAND_DESCRIPTIONS = {
+  /** Main program description */
+  program: 'Build and deploy Agentic AI applications on AgentCore',
+  /** Command descriptions */
+  add: 'Add resources to your project',
+  attach: 'Attach resources to an agent',
+  create: 'Create a new AgentCore project',
+  deploy: 'Deploy Bedrock AgentCore agent.',
+  dev: 'Launch local development server.',
+  edit: 'Open schema editor.',
+  invoke: 'Invoke Bedrock AgentCore endpoint.',
+  outline: 'Display project resource tree from schema.',
+  package: 'Package Bedrock AgentCore runtime artifacts.',
+  plan: 'Prepare deployment and show planned changes.',
+  remove: 'Remove AgentCore resources and project',
+  status: 'Retrieve details of deployed AgentCore resources.',
+  update: 'Check for and install CLI updates',
+  validate: 'Validate agentcore/ config files.',
+} as const;

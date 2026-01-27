@@ -1,0 +1,46 @@
+# AgentCore CLI
+
+CLI tool for Amazon Bedrock AgentCore. Manages agent infrastructure lifecycle.
+
+## Package Structure
+
+```
+src/
+├── index.ts           # Library entry - exports ConfigIO, types
+├── schema/            # Schema definitions with Zod validators
+├── lib/               # Shared utilities (ConfigIO, packaging)
+├── cdk/               # CDK constructs (for backward compatibility)
+├── cli/               # CLI implementation
+│   ├── commands/      # CLI commands
+│   ├── tui/           # Terminal UI (Ink/React)
+│   ├── operations/    # Business logic
+│   └── templates/     # Project templating
+└── assets/            # Template assets vended to users
+```
+
+## CLI Commands
+
+- `create` - Create new AgentCore project
+- `deploy` - Deploy infrastructure to AWS
+- `dev` - Local development server
+- `invoke` - Invoke deployed agents
+- `status` - Check deployment status
+
+## Vended CDK Project
+
+When users run `agentcore-cli create`, we vend a CDK project at `agentcore/cdk/` that:
+
+- Imports `@aws/agentcore-l3-cdk-constructs` for L3 constructs
+- Reads schema files and synthesizes CloudFormation
+
+## Library Exports
+
+This package exports utilities for programmatic use:
+
+- `ConfigIO` - Read/write schema files
+- Schema types - `AgentEnvSpec`, `AgentCoreProjectSpec`, etc.
+- `findConfigRoot()` - Locate agentcore/ directory
+
+## Related Package
+
+- `@aws/agentcore-l3-cdk-constructs` - CDK constructs used by vended projects

@@ -1,0 +1,209 @@
+import { findConfigRoot, readEnvFile } from '../../../lib';
+import type { AgentCoreProjectSpec } from '../../../schema';
+import { DevLogger } from '../../logging/dev-logger';
+import {
+  type DevConfig,
+  findAvailablePort,
+  getDevConfig,
+  invokeAgentStreaming,
+  killServer,
+  loadProjectConfig,
+  spawnDevServer,
+} from '../../operations/dev';
+import type { ChildProcess } from 'child_process';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+type ServerStatus = 'starting' | 'running' | 'error' | 'stopped';
+
+export interface LogEntry {
+  level: 'info' | 'system' | 'warn' | 'error' | 'response';
+  message: string;
+}
+
+export interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+const MAX_LOG_ENTRIES = 50;
+
+export function useDevServer(options: { workingDir: string; port: number }) {
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [status, setStatus] = useState<ServerStatus>('starting');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+  const [streamingResponse, setStreamingResponse] = useState<string | null>(null);
+  const [project, setProject] = useState<AgentCoreProjectSpec | null>(null);
+  const [configRoot, setConfigRoot] = useState<string | undefined>(undefined);
+  const [envVars, setEnvVars] = useState<Record<string, string>>({});
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const [targetPort] = useState(options.port);
+  const [actualPort, setActualPort] = useState(targetPort);
+  const [restartTrigger, setRestartTrigger] = useState(0);
+
+  const serverRef = useRef<ChildProcess | null>(null);
+  const loggerRef = useRef<DevLogger | null>(null);
+
+  const addLog = (level: LogEntry['level'], message: string) => {
+    setLogs(prev => [...prev.slice(-MAX_LOG_ENTRIES), { level, message }]);
+    // Also log to file (DevLogger filters to only important logs)
+    loggerRef.current?.log(level, message);
+  };
+
+  // Load config and env vars on mount
+  useEffect(() => {
+    const load = async () => {
+      const root = findConfigRoot(options.workingDir);
+      setConfigRoot(root ?? undefined);
+      const cfg = await loadProjectConfig(options.workingDir);
+      setProject(cfg);
+
+      // Load env vars from agentcore/.env
+      if (root) {
+        const vars = await readEnvFile(root);
+        setEnvVars(vars);
+      }
+
+      setConfigLoaded(true);
+    };
+    void load();
+  }, [options.workingDir]);
+
+  const config: DevConfig = useMemo(
+    () => getDevConfig(options.workingDir, project, configRoot),
+    [options.workingDir, project, configRoot]
+  );
+
+  // Start server when config is loaded
+  useEffect(() => {
+    if (!configLoaded) return;
+
+    const startServer = async () => {
+      // Initialize file logger for this dev session
+      loggerRef.current = new DevLogger({
+        baseDir: options.workingDir,
+        agentName: config.agentName,
+      });
+
+      const port = await findAvailablePort(targetPort);
+      if (port !== targetPort) {
+        addLog('warn', `Port ${targetPort} in use, using ${port}`);
+      }
+      setActualPort(port);
+
+      let serverReady = false;
+      serverRef.current = spawnDevServer({
+        module: config.module,
+        cwd: config.directory,
+        port,
+        isPython: config.isPython,
+        envVars,
+        callbacks: {
+          onLog: (level, message) => {
+            // Detect when server is actually ready (only once)
+            if (
+              !serverReady &&
+              (message.includes('Application startup complete') || message.includes('Uvicorn running'))
+            ) {
+              serverReady = true;
+              setStatus('running');
+              addLog('system', `Server ready at http://localhost:${port}/invocations`);
+            } else {
+              addLog(level, message);
+            }
+          },
+          onExit: code => {
+            setStatus(code === 0 ? 'stopped' : 'error');
+            addLog('system', `Server exited (code ${code})`);
+          },
+        },
+      });
+    };
+
+    void startServer();
+    return () => {
+      killServer(serverRef.current);
+      loggerRef.current?.finalize();
+    };
+  }, [
+    configLoaded,
+    config.agentName,
+    config.module,
+    config.directory,
+    config.isPython,
+    targetPort,
+    restartTrigger,
+    envVars,
+  ]);
+
+  const invoke = async (message: string) => {
+    // Add user message to conversation
+    setConversation(prev => [...prev, { role: 'user', content: message }]);
+    setStreamingResponse(null);
+    setIsStreaming(true);
+
+    let responseContent = '';
+
+    try {
+      const stream = invokeAgentStreaming(actualPort, message);
+
+      for await (const chunk of stream) {
+        responseContent += chunk;
+        setStreamingResponse(responseContent);
+      }
+
+      // Add assistant response to conversation
+      setConversation(prev => [...prev, { role: 'assistant', content: responseContent }]);
+      setStreamingResponse(null);
+
+      // Log final response to file
+      loggerRef.current?.log('system', `→ ${message}`);
+      loggerRef.current?.log('response', responseContent);
+    } catch (err) {
+      const errorMsg = `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      addLog('error', errorMsg);
+      // Add error as assistant message
+      setConversation(prev => [...prev, { role: 'assistant', content: errorMsg }]);
+      setStreamingResponse(null);
+    } finally {
+      setIsStreaming(false);
+    }
+  };
+
+  const clearLogs = () => setLogs([]);
+
+  const restart = () => {
+    addLog('system', 'Restarting server...');
+    killServer(serverRef.current);
+    setStatus('starting');
+    setRestartTrigger(t => t + 1);
+  };
+
+  const stop = () => {
+    killServer(serverRef.current);
+    loggerRef.current?.finalize();
+    setStatus('stopped');
+  };
+
+  const clearConversation = () => {
+    setConversation([]);
+    setStreamingResponse(null);
+  };
+
+  return {
+    logs,
+    status,
+    isStreaming,
+    conversation,
+    streamingResponse,
+    config,
+    configLoaded,
+    actualPort,
+    invoke,
+    clearLogs,
+    clearConversation,
+    restart,
+    stop,
+    logFilePath: loggerRef.current?.getRelativeLogPath(),
+  };
+}

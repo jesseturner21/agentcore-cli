@@ -1,0 +1,1 @@
+export { registerDeploy } from './command';
