@@ -8,7 +8,6 @@ import { join } from 'node:path';
 
 describe('removal policy cascade', () => {
   let testDir: string;
-  let projectDir: string;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `agentcore-removal-policy-cascade-${randomUUID()}`);

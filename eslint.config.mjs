@@ -61,11 +61,26 @@ export default tseslint.config(
     },
   },
   prettier,
+  // Relaxed rules for test files
+  {
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-utils/**', 'integ-tests/**'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/prefer-nullish-coalescing': 'off',
+    },
+  },
   {
     ignores: [
       'dist',
       'node_modules',
       'src/assets',
+      'src/schema/llm-compacted',
+      'web-harness',
       '.agentcore',
       '**/.agentcore/**',
       '.venv',

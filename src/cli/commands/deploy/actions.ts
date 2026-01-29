@@ -82,7 +82,7 @@ export async function handleDeploy(options: ValidatedDeployOptions): Promise<Dep
       logger.finalize(false);
       return { success: false, error: 'No stacks found to deploy', logPath: logger.getRelativeLogPath() };
     }
-    const stackName = stackNames[0] as string;
+    const stackName = stackNames[0]!;
     endStep('success');
 
     // Check if bootstrap needed

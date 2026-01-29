@@ -45,7 +45,7 @@ export async function handlePlan(options: ValidatedPlanOptions): Promise<PlanRes
       return { success: false, error: 'No stacks found to deploy' };
     }
 
-    const stackName = stackNames[0] as string;
+    const stackName = stackNames[0]!;
 
     // If --deploy flag is set, continue to deploy
     if (options.deploy) {

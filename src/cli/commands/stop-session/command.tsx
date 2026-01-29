@@ -8,7 +8,7 @@ import React from 'react';
 export const registerStopSession = (program: Command) => {
   program
     .command('stop-session')
-    .description(COMMAND_DESCRIPTIONS.stopSession ?? 'Stop an active runtime session')
+    .description(COMMAND_DESCRIPTIONS.stopSession)
     .option('--agent <name>', 'Select specific agent')
     .option('--target <name>', 'Select deployment target')
     .option('--session-id <id>', 'Session ID to stop (uses active session if not specified)')

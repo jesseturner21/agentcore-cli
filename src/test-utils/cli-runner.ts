@@ -47,16 +47,17 @@ export async function runCLI(args: string[], cwd: string, skipInstall = true): P
     let stdout = '';
     let stderr = '';
 
-    proc.stdout.on('data', data => {
+    proc.stdout.on('data', (data: Buffer) => {
       stdout += data.toString();
     });
 
-    proc.stderr.on('data', data => {
+    proc.stderr.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
 
     proc.on('close', code => {
       // Strip ANSI escape codes from stdout
+      // eslint-disable-next-line no-control-regex
       stdout = stdout.replace(/\x1B\[\??\d*[a-zA-Z]/g, '').trim();
       resolve({ stdout, stderr, exitCode: code ?? 1 });
     });

@@ -25,7 +25,7 @@ export function parseJsonOutput(output: string): unknown {
   }
   try {
     return JSON.parse(cleaned);
-  } catch (e) {
+  } catch (_e) {
     throw new Error(`Failed to parse JSON from output: ${cleaned.slice(0, 100)}...`);
   }
 }

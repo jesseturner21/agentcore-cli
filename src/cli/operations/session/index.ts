@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { ConfigIO } from '../../../lib';
 import { randomUUID } from 'crypto';
 
