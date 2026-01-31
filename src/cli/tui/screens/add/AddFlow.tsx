@@ -9,6 +9,7 @@ import {
 } from '../../hooks/useCreateMcp';
 import { AddAgentScreen } from '../agent/AddAgentScreen';
 import type { AddAgentConfig } from '../agent/types';
+import { FRAMEWORK_OPTIONS } from '../agent/types';
 import { useAddAgent } from '../agent/useAddAgent';
 import { AddIdentityScreen, useCreateIdentity, useExistingIdentityNames } from '../identity';
 import type { AddIdentityConfig } from '../identity';
@@ -21,6 +22,7 @@ import { AddScreen } from './AddScreen';
 import { AddSuccessScreen } from './AddSuccessScreen';
 import { AddTargetScreen } from './AddTargetScreen';
 import { useAddTarget, useExistingTargets } from './useAddTarget';
+import { Box, Text } from 'ink';
 import React, { useCallback, useEffect, useState } from 'react';
 
 type FlowState =
@@ -31,13 +33,68 @@ type FlowState =
   | { name: 'memory-wizard' }
   | { name: 'identity-wizard' }
   | { name: 'target-wizard' }
-  | { name: 'agent-create-success'; agentName: string; projectPath: string; loading?: boolean; loadingMessage?: string }
-  | { name: 'agent-byo-success'; agentName: string; loading?: boolean; loadingMessage?: string }
+  | {
+      name: 'agent-create-success';
+      agentName: string;
+      projectPath: string;
+      config: AddAgentConfig;
+      loading?: boolean;
+      loadingMessage?: string;
+    }
+  | { name: 'agent-byo-success'; agentName: string; config: AddAgentConfig; loading?: boolean; loadingMessage?: string }
   | { name: 'gateway-success'; gatewayName: string; loading?: boolean; loadingMessage?: string }
   | { name: 'tool-success'; toolName: string; projectPath: string; loading?: boolean; loadingMessage?: string }
   | { name: 'identity-success'; identityName: string; loading?: boolean; loadingMessage?: string }
   | { name: 'target-success'; targetName: string; loading?: boolean; loadingMessage?: string }
   | { name: 'error'; message: string };
+
+/** Tree-style display of added agent details */
+function AgentAddedSummary({ config, projectPath }: { config: AddAgentConfig; projectPath?: string }) {
+  const getFrameworkLabel = (framework: string) => {
+    const option = FRAMEWORK_OPTIONS.find(o => o.id === framework);
+    return option?.title ?? framework;
+  };
+
+  const isCreate = config.agentType === 'create';
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Text dimColor>Added:</Text>
+      <Box flexDirection="column" marginLeft={2}>
+        {isCreate && projectPath && (
+          <Text>
+            app/{config.name}/
+            <Text dimColor>
+              {'  '}
+              {config.language} agent ({getFrameworkLabel(config.framework)})
+            </Text>
+          </Text>
+        )}
+        {!isCreate && (
+          <Text>
+            {config.codeLocation}
+            <Text dimColor>
+              {'  '}
+              {config.language} agent ({getFrameworkLabel(config.framework)})
+            </Text>
+          </Text>
+        )}
+        <Text>
+          agentcore/agentcore.json
+          <Text dimColor>{'  '}Agent config added</Text>
+        </Text>
+        {config.memory !== 'none' && (
+          <Text>
+            agentcore/agentcore.json
+            <Text dimColor>
+              {'  '}Memory: {config.memory}
+            </Text>
+          </Text>
+        )}
+      </Box>
+    </Box>
+  );
+}
 
 interface AddFlowProps {
   /** Whether running in interactive TUI mode (from App.tsx) vs CLI mode */
@@ -80,6 +137,7 @@ export function AddFlow(props: AddFlowProps) {
         props.onExit();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.isInteractive, flow, props.onExit]);
 
   const handleSelectResource = useCallback((resourceType: AddResourceType) => {
@@ -112,6 +170,7 @@ export function AddFlow(props: AddFlowProps) {
         name: 'agent-create-success',
         agentName: config.name,
         projectPath: '',
+        config,
         loading: true,
         loadingMessage: 'Creating agent...',
       });
@@ -122,9 +181,10 @@ export function AddFlow(props: AddFlowProps) {
               name: 'agent-create-success',
               agentName: result.agentName,
               projectPath: result.projectPath,
+              config,
             });
           } else {
-            setFlow({ name: 'agent-byo-success', agentName: result.agentName });
+            setFlow({ name: 'agent-byo-success', agentName: result.agentName, config });
           }
         } else {
           setFlow({ name: 'error', message: result.error });
@@ -238,7 +298,8 @@ export function AddFlow(props: AddFlowProps) {
       <AddSuccessScreen
         isInteractive={props.isInteractive}
         message={`Created agent: ${flow.agentName}`}
-        detail={`Project created at ${flow.projectPath}. Deploy with \`agentcore deploy\`.`}
+        summary={!flow.loading && <AgentAddedSummary config={flow.config} projectPath={flow.projectPath} />}
+        detail="Deploy with `agentcore deploy`."
         loading={flow.loading}
         loadingMessage={flow.loadingMessage}
         onAddAnother={() => {
@@ -255,7 +316,8 @@ export function AddFlow(props: AddFlowProps) {
       <AddSuccessScreen
         isInteractive={props.isInteractive}
         message={`Added agent: ${flow.agentName}`}
-        detail="Agent added to `agentcore/agentcore.json`. Deploy with `agentcore deploy`."
+        summary={!flow.loading && <AgentAddedSummary config={flow.config} />}
+        detail="Deploy with `agentcore deploy`."
         loading={flow.loading}
         loadingMessage={flow.loadingMessage}
         onAddAnother={() => {

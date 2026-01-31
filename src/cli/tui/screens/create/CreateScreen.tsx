@@ -4,6 +4,8 @@ import { HELP_TEXT } from '../../constants';
 import { useListNavigation } from '../../hooks';
 import { STATUS_COLORS } from '../../theme';
 import { AddAgentScreen } from '../agent/AddAgentScreen';
+import type { AddAgentConfig } from '../agent/types';
+import { FRAMEWORK_OPTIONS } from '../agent/types';
 import { useCreateFlow } from './useCreateFlow';
 import { Box, Text } from 'ink';
 import { join } from 'path';
@@ -34,6 +36,39 @@ const CREATE_PROMPT_ITEMS = [
   { id: 'yes', title: 'Yes, add an agent' },
   { id: 'no', title: "No, I'll do it later" },
 ];
+
+/** Tree-style display of created project structure */
+function CreatedSummary({ projectName, agentConfig }: { projectName: string; agentConfig: AddAgentConfig | null }) {
+  const getFrameworkLabel = (framework: string) => {
+    const option = FRAMEWORK_OPTIONS.find(o => o.id === framework);
+    return option?.title ?? framework;
+  };
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Text dimColor>Created:</Text>
+      <Box flexDirection="column" marginLeft={2}>
+        <Text>{projectName}/</Text>
+        {agentConfig?.agentType === 'create' && (
+          <Box marginLeft={2}>
+            <Text>
+              app/{agentConfig.name}/
+              <Text dimColor>
+                {'  '}
+                {agentConfig.language} agent ({getFrameworkLabel(agentConfig.framework)})
+              </Text>
+            </Text>
+          </Box>
+        )}
+        <Box marginLeft={2}>
+          <Text>
+            agentcore/<Text dimColor>{'         '}Config and CDK project</Text>
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
 
 export function CreateScreen({ cwd, isInteractive, onExit, onNavigate }: CreateScreenProps) {
   const flow = useCreateFlow(cwd);
@@ -147,11 +182,9 @@ export function CreateScreen({ cwd, isInteractive, onExit, onNavigate }: CreateS
       <StepProgress steps={flow.steps} />
       {allSuccess && flow.outputDir && (
         <Box marginTop={1} flexDirection="column">
-          <Text color={STATUS_COLORS.success}>
-            Created at <Text bold>{projectRoot}</Text>
-          </Text>
+          <CreatedSummary projectName={flow.projectName} agentConfig={flow.addAgentConfig} />
           {isInteractive && (
-            <Box marginLeft={2} marginTop={1}>
+            <Box marginTop={1}>
               <Text dimColor>cd {flow.projectName}</Text>
             </Box>
           )}

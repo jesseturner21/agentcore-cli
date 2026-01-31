@@ -1,5 +1,6 @@
 import { GradientText, type NextStep, NextSteps, Screen } from '../../components';
 import { Box, Text } from 'ink';
+import type { ReactNode } from 'react';
 import React from 'react';
 
 const ADD_SUCCESS_STEPS: NextStep[] = [
@@ -14,6 +15,8 @@ interface AddSuccessScreenProps {
   message: string;
   /** Optional detail text */
   detail?: string;
+  /** Optional custom summary content to display between message and next steps */
+  summary?: ReactNode;
   /** Loading state - shows gradient animation instead of success */
   loading?: boolean;
   /** Loading message to show with gradient */
@@ -30,6 +33,7 @@ export function AddSuccessScreen({
   isInteractive,
   message,
   detail,
+  summary,
   loading,
   loadingMessage,
   onAddAnother,
@@ -45,6 +49,7 @@ export function AddSuccessScreen({
   };
 
   // Disable exit while loading
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   const handleExit = loading ? () => {} : onExit;
 
   // Non-interactive mode - just show success message
@@ -53,10 +58,11 @@ export function AddSuccessScreen({
       <Screen title={loading ? 'Add Resource' : 'Success'} onExit={handleExit}>
         <Box flexDirection="column">
           {loading ? (
-            <GradientText text={loadingMessage || 'Processing...'} />
+            <GradientText text={loadingMessage ?? 'Processing...'} />
           ) : (
             <>
               <Text color="green">✓ {message}</Text>
+              {summary}
               {detail && <Text>{detail}</Text>}
             </>
           )}
@@ -70,10 +76,11 @@ export function AddSuccessScreen({
       <Box flexDirection="column" gap={1}>
         <Box flexDirection="column">
           {loading ? (
-            <GradientText text={loadingMessage || 'Processing...'} />
+            <GradientText text={loadingMessage ?? 'Processing...'} />
           ) : (
             <>
               <Text color="green">✓ {message}</Text>
+              {summary}
               {detail && <Text>{detail}</Text>}
             </>
           )}
