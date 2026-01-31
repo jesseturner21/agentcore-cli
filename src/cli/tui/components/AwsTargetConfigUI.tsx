@@ -12,14 +12,12 @@ import { useState } from 'react';
 const AGENT_CORE_REGIONS = AgentCoreRegionSchema.options;
 
 const AWS_CHOICE_ITEMS = [
-  { id: 'login', title: 'Log in to AWS with `aws login` (Recommended)' },
-  { id: 'env', title: 'Set AWS credentials via environment variables' },
+  { id: 'login', title: 'Exit and run `aws login` in terminal (Recommended)' },
+  { id: 'env', title: 'Enter AWS credentials manually' },
 ];
 
 interface AwsTargetConfigUIProps {
   config: AwsTargetConfigState;
-  /** Called when user selects "aws login" - should navigate to shell with command prefilled */
-  onShellCommand: (command: string) => void;
   /** Called when user presses Esc to exit */
   onExit: () => void;
   isActive: boolean;
@@ -29,7 +27,7 @@ interface AwsTargetConfigUIProps {
  * Reusable UI component for AWS target configuration.
  * Used by plan and deploy screens when aws-targets.json is empty.
  */
-export function AwsTargetConfigUI({ config, onShellCommand, onExit, isActive }: AwsTargetConfigUIProps) {
+export function AwsTargetConfigUI({ config, onExit, isActive }: AwsTargetConfigUIProps) {
   // Track which row is focused: 0 = "All Targets", 1+ = individual targets
   const [focusedRow, setFocusedRow] = useState(0);
   const totalRows = 1 + config.availableTargets.length; // "All" + individual targets
@@ -39,10 +37,11 @@ export function AwsTargetConfigUI({ config, onShellCommand, onExit, isActive }: 
     items: AWS_CHOICE_ITEMS,
     onSelect: item => {
       if (item.id === 'login') {
-        onShellCommand('aws login');
+        // Exit so user can run aws login in their terminal
+        onExit();
       } else {
-        // Open shell for user to paste their export statements
-        onShellCommand('');
+        // Go to manual entry flow
+        config.selectManualEntry();
       }
     },
     onExit,
@@ -88,8 +87,11 @@ export function AwsTargetConfigUI({ config, onShellCommand, onExit, isActive }: 
         setRegionIndex(i => Math.max(0, i - 1));
       } else if (key.downArrow) {
         setRegionIndex(i => Math.min(filteredRegions.length - 1, i + 1));
-      } else if (key.return && filteredRegions[regionIndex]) {
-        config.submitRegion(filteredRegions[regionIndex]);
+      } else if (key.return) {
+        const selectedRegion = filteredRegions.at(regionIndex);
+        if (selectedRegion) {
+          config.submitRegion(selectedRegion);
+        }
       } else if (key.escape) {
         config.goBackToChoice();
       } else if (key.backspace || key.delete) {
@@ -236,6 +238,7 @@ export function AwsTargetConfigUI({ config, onShellCommand, onExit, isActive }: 
 /**
  * Returns the appropriate help text for the current AWS config phase.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function getAwsConfigHelpText(phase: AwsConfigPhase): string | undefined {
   switch (phase) {
     case 'choice':

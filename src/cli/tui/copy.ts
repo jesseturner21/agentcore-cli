@@ -8,8 +8,8 @@
  * Uses · as separator for compact, readable hints.
  */
 export const HINTS = {
-  HOME: 'Type to search, Tab commands, ! shell, Esc quit',
-  COMMANDS: 'Type to filter, ↑↓ navigate, Enter select, ! shell, Esc back',
+  HOME: 'Type to search, Tab commands, Esc quit',
+  COMMANDS: 'Type to filter, ↑↓ navigate, Enter select, Esc back',
 } as const;
 
 /**
