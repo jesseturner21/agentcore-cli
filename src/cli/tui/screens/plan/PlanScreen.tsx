@@ -23,13 +23,12 @@ interface PlanScreenProps {
   isInteractive: boolean;
   onExit: () => void;
   autoConfirm?: boolean;
-  onShellCommand?: (command: string) => void;
 }
 
 /** Next steps shown after successful plan */
 const PLAN_NEXT_STEPS: NextStep[] = [{ command: 'deploy', label: 'Deploy to AWS' }];
 
-export function PlanScreen({ isInteractive, onExit, autoConfirm, onShellCommand }: PlanScreenProps) {
+export function PlanScreen({ isInteractive, onExit, autoConfirm }: PlanScreenProps) {
   const awsConfig = useAwsTargetConfig();
   const {
     phase,
@@ -124,43 +123,32 @@ export function PlanScreen({ isInteractive, onExit, autoConfirm, onShellCommand 
 
   // Token expired recovery flow - show re-authentication options
   if (awsConfig.phase === 'token-expired') {
-    const handleShellCommand = (command: string) => {
-      // Clear the error state before navigating to shell
+    const handleTokenExpiredExit = () => {
       clearTokenExpiredError();
       awsConfig.resetFromTokenExpired();
-      if (onShellCommand) {
-        onShellCommand(command);
-      }
+      handleExit();
     };
 
     return (
-      <Screen title="AgentCore Plan" onExit={handleExit} helpText={getAwsConfigHelpText(awsConfig.phase)}>
-        <AwsTargetConfigUI config={awsConfig} onShellCommand={handleShellCommand} onExit={handleExit} isActive={true} />
+      <Screen title="AgentCore Plan" onExit={handleTokenExpiredExit} helpText={getAwsConfigHelpText(awsConfig.phase)}>
+        <AwsTargetConfigUI config={awsConfig} onExit={handleTokenExpiredExit} isActive={true} />
       </Screen>
     );
   }
 
   // Credentials error recovery flow - show credential setup options (interactive mode)
   if (awsConfig.phase === 'choice' && hasCredentialsError) {
-    const handleShellCommand = (command: string) => {
-      // Clear the error state before navigating to shell
+    const handleCredentialsExit = () => {
       clearCredentialsError();
       awsConfig.resetFromChoice();
-      if (onShellCommand) {
-        onShellCommand(command);
-      }
+      handleExit();
     };
 
     return (
-      <Screen title="AgentCore Plan" onExit={handleExit} helpText={getAwsConfigHelpText(awsConfig.phase)}>
+      <Screen title="AgentCore Plan" onExit={handleCredentialsExit} helpText={getAwsConfigHelpText(awsConfig.phase)}>
         <StepProgress steps={steps} />
         <Box marginTop={1}>
-          <AwsTargetConfigUI
-            config={awsConfig}
-            onShellCommand={handleShellCommand}
-            onExit={handleExit}
-            isActive={true}
-          />
+          <AwsTargetConfigUI config={awsConfig} onExit={handleCredentialsExit} isActive={true} />
         </Box>
       </Screen>
     );
@@ -168,15 +156,9 @@ export function PlanScreen({ isInteractive, onExit, autoConfirm, onShellCommand 
 
   // AWS target configuration phase
   if (!awsConfig.isConfigured) {
-    const handleShellCommand = (command: string) => {
-      if (onShellCommand) {
-        onShellCommand(command);
-      }
-    };
-
     return (
       <Screen title="AgentCore Plan" onExit={handleExit} helpText={getAwsConfigHelpText(awsConfig.phase)}>
-        <AwsTargetConfigUI config={awsConfig} onShellCommand={handleShellCommand} onExit={handleExit} isActive={true} />
+        <AwsTargetConfigUI config={awsConfig} onExit={handleExit} isActive={true} />
       </Screen>
     );
   }

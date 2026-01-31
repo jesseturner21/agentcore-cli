@@ -22,7 +22,6 @@ interface DeployScreenProps {
   isInteractive: boolean;
   onExit: () => void;
   autoConfirm?: boolean;
-  onShellCommand?: (command: string) => void;
   /** Navigate to another command (interactive mode only) */
   onNavigate?: (command: string) => void;
   /** Skip preflight and use pre-synthesized context (from plan command) */
@@ -35,14 +34,7 @@ const DEPLOY_NEXT_STEPS: NextStep[] = [
   { command: 'status', label: 'View deployment status' },
 ];
 
-export function DeployScreen({
-  isInteractive,
-  onExit,
-  autoConfirm,
-  onShellCommand,
-  onNavigate,
-  preSynthesized,
-}: DeployScreenProps) {
+export function DeployScreen({ isInteractive, onExit, autoConfirm, onNavigate, preSynthesized }: DeployScreenProps) {
   const awsConfig = useAwsTargetConfig();
   const [showInvoke, setShowInvoke] = useState(false);
   const {
@@ -118,38 +110,32 @@ export function DeployScreen({
 
   // Token expired recovery flow - show re-authentication options
   if (awsConfig.phase === 'token-expired') {
-    const handleShellCommand = (command: string) => {
-      // Clear the error state before navigating to shell
+    const handleExit = () => {
       clearTokenExpiredError();
       awsConfig.resetFromTokenExpired();
-      if (onShellCommand) {
-        onShellCommand(command);
-      }
+      onExit();
     };
 
     return (
-      <Screen title="AgentCore Deploy" onExit={onExit} helpText={getAwsConfigHelpText(awsConfig.phase)}>
-        <AwsTargetConfigUI config={awsConfig} onShellCommand={handleShellCommand} onExit={onExit} isActive={true} />
+      <Screen title="AgentCore Deploy" onExit={handleExit} helpText={getAwsConfigHelpText(awsConfig.phase)}>
+        <AwsTargetConfigUI config={awsConfig} onExit={handleExit} isActive={true} />
       </Screen>
     );
   }
 
   // Credentials error recovery flow - show credential setup options (interactive mode)
   if (awsConfig.phase === 'choice' && hasCredentialsError) {
-    const handleShellCommand = (command: string) => {
-      // Clear the error state before navigating to shell
+    const handleExit = () => {
       clearCredentialsError();
       awsConfig.resetFromChoice();
-      if (onShellCommand) {
-        onShellCommand(command);
-      }
+      onExit();
     };
 
     return (
-      <Screen title="AgentCore Deploy" onExit={onExit} helpText={getAwsConfigHelpText(awsConfig.phase)}>
+      <Screen title="AgentCore Deploy" onExit={handleExit} helpText={getAwsConfigHelpText(awsConfig.phase)}>
         <StepProgress steps={steps} />
         <Box marginTop={1}>
-          <AwsTargetConfigUI config={awsConfig} onShellCommand={handleShellCommand} onExit={onExit} isActive={true} />
+          <AwsTargetConfigUI config={awsConfig} onExit={handleExit} isActive={true} />
         </Box>
       </Screen>
     );
@@ -157,15 +143,9 @@ export function DeployScreen({
 
   // AWS target configuration phase (skip when preSynthesized - we already have context)
   if (!skipPreflight && !awsConfig.isConfigured) {
-    const handleShellCommand = (command: string) => {
-      if (onShellCommand) {
-        onShellCommand(command);
-      }
-    };
-
     return (
       <Screen title="AgentCore Deploy" onExit={onExit} helpText={getAwsConfigHelpText(awsConfig.phase)}>
-        <AwsTargetConfigUI config={awsConfig} onShellCommand={handleShellCommand} onExit={onExit} isActive={true} />
+        <AwsTargetConfigUI config={awsConfig} onExit={onExit} isActive={true} />
       </Screen>
     );
   }

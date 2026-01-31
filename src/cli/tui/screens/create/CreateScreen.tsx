@@ -20,7 +20,6 @@ interface CreateScreenProps {
   /** Whether running in interactive TUI mode (from App.tsx) vs CLI mode */
   isInteractive: boolean;
   onExit: () => void;
-  onShellCommand?: (command: string) => void;
   onNavigate?: (params: NavigateParams) => void;
 }
 
