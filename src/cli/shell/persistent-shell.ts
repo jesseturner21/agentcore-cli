@@ -11,6 +11,7 @@
 import { spawnShellCommand } from './executor';
 import type { ShellExecutor, ShellExecutorCallbacks } from './types';
 import { ChildProcess, spawn } from 'node:child_process';
+import { isWindows } from '../../../lib/utils/platform';
 
 const MARKER = `__AGENTCORE_DONE_${process.pid}_${Date.now()}__`;
 
@@ -48,7 +49,7 @@ let activeCallback: ShellExecutorCallbacks | null = null;
 let busy = false;
 let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 // PTY via 'script' command is not available on Windows
-let ptyAvailable = process.platform !== 'win32';
+let ptyAvailable = !isWindows;
 
 // Pending command info for retry on PTY failure
 let pendingCommand: { cmd: string; callbacks: ShellExecutorCallbacks; timeoutMs: number } | null = null;
