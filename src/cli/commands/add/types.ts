@@ -59,40 +59,45 @@ export interface AddMcpToolResult {
   error?: string;
 }
 
-// Memory types
+// Memory types (v2: no owner/user concept)
 export interface AddMemoryOptions {
   name?: string;
-  description?: string;
   strategies?: string;
   expiry?: number;
-  owner?: string;
-  users?: string;
   json?: boolean;
 }
 
 export interface AddMemoryResult {
   success: boolean;
   memoryName?: string;
-  ownerAgent?: string;
-  userAgents?: string[];
   error?: string;
 }
 
-// Identity types
+// Identity types (v2: credential, no owner/user concept)
 export interface AddIdentityOptions {
   name?: string;
-  type?: string;
   apiKey?: string;
-  owner?: string;
-  users?: string;
   json?: boolean;
 }
 
 export interface AddIdentityResult {
   success: boolean;
-  identityName?: string;
-  ownerAgent?: string;
-  userAgents?: string[];
+  credentialName?: string;
+  error?: string;
+}
+
+// MCP Runtime Bind types (still relevant in v2)
+export interface BindMcpRuntimeOptions {
+  agent: string;
+  runtime: string;
+  envVar?: string;
+  json?: boolean;
+}
+
+export interface BindMcpRuntimeResult {
+  success: boolean;
+  runtimeName?: string;
+  targetAgent?: string;
   error?: string;
 }
 

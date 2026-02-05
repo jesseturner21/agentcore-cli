@@ -7,11 +7,7 @@ import {
   handleAddIdentity,
   handleAddMcpTool,
   handleAddMemory,
-  handleBindAgent,
-  handleBindGateway,
-  handleBindIdentity,
   handleBindMcpRuntime,
-  handleBindMemory,
 } from './actions';
 import { handleAddTarget } from './target-action';
 import type {
@@ -20,11 +16,7 @@ import type {
   AddIdentityOptions,
   AddMcpToolOptions,
   AddMemoryOptions,
-  BindAgentOptions,
-  BindGatewayOptions,
-  BindIdentityOptions,
   BindMcpRuntimeOptions,
-  BindMemoryOptions,
 } from './types';
 import {
   validateAddAgentOptions,
@@ -179,6 +171,7 @@ async function handleAddMcpToolCLI(options: AddMcpToolOptions): Promise<void> {
   process.exit(result.success ? 0 : 1);
 }
 
+// v2: Memory is a top-level resource (no owner/user)
 async function handleAddMemoryCLI(options: AddMemoryOptions): Promise<void> {
   const validation = validateAddMemoryOptions(options);
   if (!validation.valid) {
@@ -192,20 +185,14 @@ async function handleAddMemoryCLI(options: AddMemoryOptions): Promise<void> {
 
   const result = await handleAddMemory({
     name: options.name!,
-    description: options.description,
     strategies: options.strategies!,
     expiry: options.expiry,
-    owner: options.owner!,
-    users: options.users,
   });
 
   if (options.json) {
     console.log(JSON.stringify(result));
   } else if (result.success) {
-    console.log(`Added memory '${result.memoryName}' owned by '${result.ownerAgent}'`);
-    if (result.userAgents && result.userAgents.length > 0) {
-      console.log(`Shared with: ${result.userAgents.join(', ')}`);
-    }
+    console.log(`Added memory '${result.memoryName}'`);
   } else {
     console.error(result.error);
   }
@@ -213,6 +200,7 @@ async function handleAddMemoryCLI(options: AddMemoryOptions): Promise<void> {
   process.exit(result.success ? 0 : 1);
 }
 
+// v2: Identity/Credential is a top-level resource (no owner/user)
 async function handleAddIdentityCLI(options: AddIdentityOptions): Promise<void> {
   const validation = validateAddIdentityOptions(options);
   if (!validation.valid) {
@@ -226,19 +214,43 @@ async function handleAddIdentityCLI(options: AddIdentityOptions): Promise<void> 
 
   const result = await handleAddIdentity({
     name: options.name!,
-    type: options.type!,
     apiKey: options.apiKey!,
-    owner: options.owner!,
-    users: options.users,
   });
 
   if (options.json) {
     console.log(JSON.stringify(result));
   } else if (result.success) {
-    console.log(`Added identity '${result.identityName}' owned by '${result.ownerAgent}'`);
-    if (result.userAgents && result.userAgents.length > 0) {
-      console.log(`Shared with: ${result.userAgents.join(', ')}`);
+    console.log(`Added credential '${result.credentialName}'`);
+  } else {
+    console.error(result.error);
+  }
+
+  process.exit(result.success ? 0 : 1);
+}
+
+// MCP Runtime binding (still relevant in v2)
+async function handleBindMcpRuntimeCLI(options: BindMcpRuntimeOptions): Promise<void> {
+  if (!options.agent || !options.runtime) {
+    const error = 'Required: --agent, --runtime';
+    if (options.json) {
+      console.log(JSON.stringify({ success: false, error }));
+    } else {
+      console.error(error);
     }
+    process.exit(1);
+  }
+
+  const envVar = options.envVar ?? `${options.runtime.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_MCP_RUNTIME_URL`;
+  const result = await handleBindMcpRuntime({
+    agent: options.agent,
+    runtime: options.runtime,
+    envVar,
+  });
+
+  if (options.json) {
+    console.log(JSON.stringify(result));
+  } else if (result.success) {
+    console.log(`Bound MCP runtime '${result.runtimeName}' to agent '${result.targetAgent}'`);
   } else {
     console.error(result.error);
   }
@@ -333,35 +345,6 @@ async function handleBindGatewayCLI(options: BindGatewayOptions): Promise<void> 
     console.log(JSON.stringify(result));
   } else if (result.success) {
     console.log(`Bound gateway '${result.gatewayName}' to agent '${result.targetAgent}'`);
-  } else {
-    console.error(result.error);
-  }
-
-  process.exit(result.success ? 0 : 1);
-}
-
-async function handleBindMcpRuntimeCLI(options: BindMcpRuntimeOptions): Promise<void> {
-  if (!options.agent || !options.runtime) {
-    const error = 'Required: --agent, --runtime';
-    if (options.json) {
-      console.log(JSON.stringify({ success: false, error }));
-    } else {
-      console.error(error);
-    }
-    process.exit(1);
-  }
-
-  const envVar = options.envVar ?? `${options.runtime.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_MCP_RUNTIME_URL`;
-  const result = await handleBindMcpRuntime({
-    agent: options.agent,
-    runtime: options.runtime,
-    envVar,
-  });
-
-  if (options.json) {
-    console.log(JSON.stringify(result));
-  } else if (result.success) {
-    console.log(`Bound MCP runtime '${result.runtimeName}' to agent '${result.targetAgent}'`);
   } else {
     console.error(result.error);
   }
@@ -490,21 +473,16 @@ export function registerAdd(program: Command) {
       await handleAddMcpToolCLI(options as AddMcpToolOptions);
     });
 
-  // Subcommand: add memory
+  // Subcommand: add memory (v2: top-level resource)
   addCmd
     .command('memory')
     .description('Add a memory resource to the project')
     .option('--name <name>', 'Memory name')
-    .option('--description <desc>', 'Memory description')
-    .option('--strategies <types>', 'Comma-separated strategies: SEMANTIC, SUMMARIZATION, USER_PREFERENCE, CUSTOM')
+    .option(
+      '--strategies <types>',
+      'Comma-separated strategies: SEMANTIC, SUMMARIZATION, USER_PREFERENCE, EPISODIC, CUSTOM'
+    )
     .option('--expiry <days>', 'Event expiry duration in days (default: 30)', parseInt)
-    .option('--owner <agent>', 'Agent that owns the memory')
-    .option('--users <agents>', 'Comma-separated agent names that can use the memory')
-    .option('--bind', 'Bind existing memory to an agent instead of creating new')
-    .option('--agent <name>', 'Target agent (for --bind)')
-    .option('--memory <name>', 'Memory name to bind (for --bind)')
-    .option('--access <level>', 'Access level: read or readwrite (for --bind)', 'read')
-    .option('--env-var <name>', 'Environment variable name (for --bind)')
     .option('--json', 'Output as JSON')
     .action(async options => {
       requireProject();
@@ -515,73 +493,20 @@ export function registerAdd(program: Command) {
       }
     });
 
-  // Subcommand: add identity
+  // Subcommand: add identity (v2: top-level credential resource)
   addCmd
     .command('identity')
-    .description('Add an identity provider to the project')
-    .option('--name <name>', 'Identity name')
-    .option('--type <type>', 'Identity type: ApiKeyCredentialProvider')
+    .description('Add a credential to the project')
+    .option('--name <name>', 'Credential name')
     .option('--api-key <key>', 'The API key value')
-    .option('--owner <agent>', 'Agent that owns the identity')
-    .option('--users <agents>', 'Comma-separated agent names that can use the identity')
-    .option('--bind', 'Bind existing identity to an agent instead of creating new')
-    .option('--agent <name>', 'Target agent (for --bind)')
-    .option('--identity <name>', 'Identity name to bind (for --bind)')
-    .option('--env-var <name>', 'Environment variable name (for --bind)')
     .option('--json', 'Output as JSON')
     .action(async options => {
       requireProject();
-      if (options.bind) {
-        await handleBindIdentityCLI(options as BindIdentityOptions);
-      } else {
-        await handleAddIdentityCLI(options as AddIdentityOptions);
-      }
+      await handleBindAgentCLI(options as BindAgentOptions);
     });
 
-  // Subcommand: add bind (explicit bind commands)
-  const bindCmd = addCmd.command('bind').description('Bind existing resources to agents');
-
-  // bind memory
-  bindCmd
-    .command('memory')
-    .description('Bind existing memory to an agent')
-    .requiredOption('--agent <name>', 'Target agent')
-    .requiredOption('--memory <name>', 'Memory name to bind')
-    .option('--access <level>', 'Access level: read or readwrite', 'read')
-    .option('--env-var <name>', 'Environment variable name')
-    .option('--json', 'Output as JSON')
-    .action(async options => {
-      requireProject();
-      await handleBindMemoryCLI(options as BindMemoryOptions);
-    });
-
-  // bind identity
-  bindCmd
-    .command('identity')
-    .description('Bind existing identity to an agent')
-    .requiredOption('--agent <name>', 'Target agent')
-    .requiredOption('--identity <name>', 'Identity name to bind')
-    .option('--env-var <name>', 'Environment variable name')
-    .option('--json', 'Output as JSON')
-    .action(async options => {
-      requireProject();
-      await handleBindIdentityCLI(options as BindIdentityOptions);
-    });
-
-  // bind gateway
-  bindCmd
-    .command('gateway')
-    .description('Bind existing gateway to an agent')
-    .requiredOption('--agent <name>', 'Target agent')
-    .requiredOption('--gateway <name>', 'Gateway name to bind')
-    .option('--name <name>', 'MCP provider name')
-    .option('--description <desc>', 'Description')
-    .option('--env-var <name>', 'Environment variable name')
-    .option('--json', 'Output as JSON')
-    .action(async options => {
-      requireProject();
-      await handleBindGatewayCLI(options as BindGatewayOptions);
-    });
+  // Subcommand: add bind (only MCP runtime binding in v2)
+  const bindCmd = addCmd.command('bind').description('Bind MCP resources to agents');
 
   // bind mcp-runtime
   bindCmd
@@ -594,20 +519,5 @@ export function registerAdd(program: Command) {
     .action(async options => {
       requireProject();
       await handleBindMcpRuntimeCLI(options as BindMcpRuntimeOptions);
-    });
-
-  // bind agent (as remote tool)
-  bindCmd
-    .command('agent')
-    .description('Bind an agent as a remote tool to another agent')
-    .requiredOption('--source <name>', 'Source agent (the one that will invoke)')
-    .requiredOption('--target <name>', 'Target agent (the one to be invoked)')
-    .option('--name <name>', 'Tool name')
-    .option('--description <desc>', 'Tool description')
-    .option('--env-var <name>', 'Environment variable name')
-    .option('--json', 'Output as JSON')
-    .action(async options => {
-      requireProject();
-      await handleBindAgentCLI(options as BindAgentOptions);
     });
 }
