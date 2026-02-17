@@ -9,7 +9,7 @@ on:
     branches: [main]
 
 permissions:
-  id-token: write # OIDC — lets GitHub assume an AWS IAM role via short-lived token (no stored keys)
+  id-token: write # OIDC — lets GitHub assume an AWS IAM role via short-lived token (no stored secrets)
   contents: read
 
 jobs:
