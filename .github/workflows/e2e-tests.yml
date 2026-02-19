@@ -42,7 +42,7 @@ jobs:
         uses: aws-actions/aws-secretsmanager-get-secrets@v2
         with:
           secret-ids: |
-            e2e,arn:aws:secretsmanager:us-east-1:685197708687:secret:e2e-api-keys-jRHRJ5
+            E2E,arn:aws:secretsmanager:us-east-1:685197708687:secret:e2e-api-keys-jRHRJ5
           parse-json-secrets: true
       - run: npm ci
       - run: npm run build
@@ -50,7 +50,7 @@ jobs:
         env:
           AWS_ACCOUNT_ID: ${{ steps.aws.outputs.account_id }}
           AWS_REGION: ${{ inputs.aws_region || 'us-east-1' }}
-          ANTHROPIC_API_KEY: ${{ env.e2e_ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ env.e2e_OPENAI_API_KEY }}
-          GEMINI_API_KEY: ${{ env.e2e_GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ env.E2E_ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ env.E2E_OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ env.E2E_GEMINI_API_KEY }}
         run: npm run test:e2e
