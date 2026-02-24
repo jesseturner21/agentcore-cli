@@ -39,5 +39,6 @@ export const COMMAND_DESCRIPTIONS = {
   remove: 'Remove AgentCore resources and project',
   status: 'Retrieve details of deployed AgentCore resources.',
   update: 'Check for and install CLI updates',
+  telemetry: 'Manage anonymous usage analytics preferences.',
   validate: 'Validate agentcore/ config files.',
 } as const;
