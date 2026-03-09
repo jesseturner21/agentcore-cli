@@ -93,8 +93,17 @@ export function AddGatewayTargetFlow({
         .catch((err: unknown) => {
           setFlow({ name: 'error', message: err instanceof Error ? err.message : 'Unknown error' });
         });
+    } else if (config.targetType === 'lambdaFunctionArn') {
+      void gatewayTargetPrimitive
+        .createLambdaFunctionArnTarget(config)
+        .then((result: { toolName: string }) => {
+          setFlow({ name: 'create-success', toolName: result.toolName, projectPath: '' });
+        })
+        .catch((err: unknown) => {
+          setFlow({ name: 'error', message: err instanceof Error ? err.message : 'Unknown error' });
+        });
     } else {
-      setFlow({ name: 'error', message: `Unsupported target type: ${String(config.targetType)}` });
+      setFlow({ name: 'error', message: `Unsupported target type: ${(config as { targetType: string }).targetType}` });
     }
   }, []);
 
