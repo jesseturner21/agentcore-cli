@@ -6,6 +6,8 @@ import {
   parseAgentOutputs,
   parseGatewayOutputs,
   parseMemoryOutputs,
+  parsePolicyEngineOutputs,
+  parsePolicyOutputs,
 } from '../../../cloudformation';
 import { getErrorMessage, isChangesetInProgressError, isExpiredTokenError } from '../../../errors';
 import { ExecLogger } from '../../../logging';
@@ -257,6 +259,17 @@ export function useDeployFlow(options: DeployFlowOptions = {}): DeployFlowState 
       );
     }
 
+    // Parse policy engine outputs
+    const policyEngineSpecs = ctx.projectSpec.policyEngines ?? [];
+    const policyEngineNames = policyEngineSpecs.map((pe: { name: string }) => pe.name);
+    const policyEngines = parsePolicyEngineOutputs(outputs, policyEngineNames);
+
+    // Parse policy outputs
+    const policySpecs = policyEngineSpecs.flatMap((pe: { name: string; policies: Array<{ name: string }> }) =>
+      pe.policies.map(p => ({ engineName: pe.name, policyName: p.name }))
+    );
+    const policies = parsePolicyOutputs(outputs, policySpecs);
+
     // Expose outputs to UI
     setStackOutputs(outputs);
 
@@ -269,6 +282,8 @@ export function useDeployFlow(options: DeployFlowOptions = {}): DeployFlowState 
       existingState,
       identityKmsKeyArn,
       memories,
+      policyEngines,
+      policies,
       credentials: Object.keys(oauthCredentials).length > 0 ? oauthCredentials : undefined,
     });
     await configIO.writeDeployedState(deployedState);
