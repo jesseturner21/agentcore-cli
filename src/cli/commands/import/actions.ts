@@ -14,6 +14,7 @@ import type { ImportResult, ParsedStarterToolkitConfig, ResourceToImport } from 
 import { parseStarterToolkitYaml } from './yaml-parser';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as readline from 'node:readline';
 
 export interface ImportOptions {
   source: string;
@@ -28,6 +29,16 @@ function sanitize(name: string): string {
 
 function toStackName(projectName: string, targetName: string): string {
   return `AgentCore-${sanitize(projectName)}-${sanitize(targetName)}`;
+}
+
+async function confirmWithUser(message: string): Promise<boolean> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise(resolve => {
+    rl.question(message, answer => {
+      rl.close();
+      resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
+    });
+  });
 }
 
 /**
@@ -148,6 +159,45 @@ export async function handleImport(options: ImportOptions): Promise<ImportResult
       `Found ${parsed.agents.length} agent(s), ${parsed.memories.length} memory(ies), ${parsed.credentials.length} credential(s)`
     );
     logger.endStep('success');
+
+    // Show import summary and confirm
+    if (!options.yes) {
+      const agentsWithRoles = parsed.agents.filter(a => a.executionRoleArn);
+
+      console.log('\nThe following resources will be imported:\n');
+      console.log('  Agents:');
+      for (const agent of parsed.agents) {
+        const idSuffix = agent.physicalAgentId ? ` (runtime ID: ${agent.physicalAgentId})` : '';
+        console.log(`    - ${agent.name} (${agent.build}${idSuffix})`);
+      }
+      if (parsed.memories.length > 0) {
+        console.log('  Memories:');
+        for (const mem of parsed.memories) {
+          const idSuffix = mem.physicalMemoryId ? ` (memory ID: ${mem.physicalMemoryId})` : '';
+          console.log(`    - ${mem.name}${idSuffix}`);
+        }
+      }
+
+      if (agentsWithRoles.length > 0) {
+        console.log('\n\x1b[33m⚠  Execution Role Notice:\x1b[0m');
+        for (const agent of agentsWithRoles) {
+          console.log(`   Agent "${agent.name}" has an existing execution role:`);
+          console.log(`     ${agent.executionRoleArn}`);
+        }
+        console.log('');
+        console.log('   A new CDK-managed execution role will be created for each agent.');
+        console.log('   The existing role(s) above will NOT be used after import.');
+        console.log('');
+        console.log('   To customize policies on the new role, edit:');
+        console.log('     agentcore/cdk/lib/cdk-stack.ts');
+      }
+
+      console.log('');
+      const confirmed = await confirmWithUser('Proceed with import? [y/N]: ');
+      if (!confirmed) {
+        return { success: false, error: 'Import cancelled by user' };
+      }
+    }
 
     // Check early whether there are any physical IDs to import.
     // This determines whether we need strict target resolution (account/region required).
@@ -359,7 +409,7 @@ export async function handleImport(options: ImportOptions): Promise<ImportResult
             const toolkitDockerfile = path.join(toolkitProjectDir, '.bedrock_agentcore', agent.name, 'Dockerfile');
             if (fs.existsSync(toolkitDockerfile)) {
               logger.log('Copying Dockerfile from starter toolkit config');
-            onProgress?.(`Copying Dockerfile from starter toolkit config`);
+              onProgress?.(`Copying Dockerfile from starter toolkit config`);
               fs.copyFileSync(toolkitDockerfile, destDockerfile);
             } else {
               // Generate a minimal Dockerfile for Container builds
@@ -402,7 +452,7 @@ export async function handleImport(options: ImportOptions): Promise<ImportResult
         const pyprojectPath = path.join(appDir, 'pyproject.toml');
         if (!fs.existsSync(pyprojectPath)) {
           logger.log(`Creating minimal pyproject.toml at ${appDir}`);
-        onProgress?.(`Creating minimal pyproject.toml at ${appDir}`);
+          onProgress?.(`Creating minimal pyproject.toml at ${appDir}`);
           fs.writeFileSync(
             pyprojectPath,
             [
@@ -440,7 +490,10 @@ export async function handleImport(options: ImportOptions): Promise<ImportResult
           logger.log(`Warning: uv not found — run "uv sync" manually in ${APP_DIR}/${agent.name}`, 'warn');
           onProgress?.(`Warning: uv not found — run "uv sync" manually in ${APP_DIR}/${agent.name}`);
         } else {
-          logger.log(`Warning: Python setup failed for ${agent.name}: ${setupResult.error ?? setupResult.status}`, 'warn');
+          logger.log(
+            `Warning: Python setup failed for ${agent.name}: ${setupResult.error ?? setupResult.status}`,
+            'warn'
+          );
           onProgress?.(`Warning: Python setup failed for ${agent.name}: ${setupResult.error ?? setupResult.status}`);
         }
       }

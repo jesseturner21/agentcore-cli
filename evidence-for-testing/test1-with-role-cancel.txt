@@ -1,0 +1,22 @@
+[32m[done][0m  Using existing project: importroletest
+[32m[done][0m  Parsing ../test-with-role.yaml...
+[32m[done][0m  Found 1 agent(s), 0 memory(ies), 0 credential(s)
+
+The following resources will be imported:
+
+  Agents:
+    - my_strands_agent (CodeZip)
+
+[33m⚠  Execution Role Notice:[0m
+   Agent "my_strands_agent" has an existing execution role:
+     arn:aws:iam::111122223333:role/my-custom-execution-role
+
+   A new CDK-managed execution role will be created for each agent.
+   The existing role(s) above will NOT be used after import.
+
+   To customize policies on the new role, edit:
+     agentcore/cdk/lib/cdk-stack.ts
+
+Proceed with import? [y/N]: 
+[31m[error][0m Import failed: Import cancelled by user
+[?25h

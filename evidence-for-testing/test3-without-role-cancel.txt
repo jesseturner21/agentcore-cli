@@ -1,0 +1,12 @@
+[32m[done][0m  Using existing project: importroletest
+[32m[done][0m  Parsing ../test-without-role.yaml...
+[32m[done][0m  Found 1 agent(s), 0 memory(ies), 0 credential(s)
+
+The following resources will be imported:
+
+  Agents:
+    - my_basic_agent (CodeZip)
+
+Proceed with import? [y/N]: 
+[31m[error][0m Import failed: Import cancelled by user
+[?25h

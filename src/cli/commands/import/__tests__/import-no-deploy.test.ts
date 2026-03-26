@@ -485,6 +485,7 @@ agents:
     const progressMessages: string[] = [];
     const result = await handleImport({
       source: yamlPath,
+      yes: true,
       onProgress: (msg: string) => progressMessages.push(msg),
     });
 
@@ -511,6 +512,7 @@ agents:
     const progressMessages: string[] = [];
     await handleImport({
       source: yamlPath,
+      yes: true,
       onProgress: (msg: string) => progressMessages.push(msg),
     });
 
@@ -531,7 +533,7 @@ agents:
     mockReadAWSDeploymentTargets.mockResolvedValue([{ name: 'default', account: '111122223333', region: 'us-east-1' }]);
 
     const { handleImport } = await import('../actions.js');
-    await handleImport({ source: yamlPath });
+    await handleImport({ source: yamlPath, yes: true });
 
     // writeProjectSpec should have been called with the merged config
     expect(mockWriteProjectSpec).toHaveBeenCalledTimes(1);
@@ -552,7 +554,7 @@ agents:
     mockReadAWSDeploymentTargets.mockResolvedValue([{ name: 'default', account: '111122223333', region: 'us-east-1' }]);
 
     const { handleImport } = await import('../actions.js');
-    await handleImport({ source: yamlPath });
+    await handleImport({ source: yamlPath, yes: true });
 
     const writtenSpec = mockWriteProjectSpec.mock.calls[0]![0];
     expect(writtenSpec.memories).toHaveLength(1);
@@ -572,7 +574,7 @@ agents:
     mockReadAWSDeploymentTargets.mockResolvedValue([{ name: 'default', account: '111122223333', region: 'us-east-1' }]);
 
     const { handleImport } = await import('../actions.js');
-    await handleImport({ source: yamlPath });
+    await handleImport({ source: yamlPath, yes: true });
 
     expect(mockBuildCdkProject).not.toHaveBeenCalled();
     expect(mockSynthesizeCdk).not.toHaveBeenCalled();
@@ -590,7 +592,7 @@ agents:
     mockReadAWSDeploymentTargets.mockResolvedValue([{ name: 'default', account: '111122223333', region: 'us-east-1' }]);
 
     const { handleImport } = await import('../actions.js');
-    await handleImport({ source: yamlPath });
+    await handleImport({ source: yamlPath, yes: true });
 
     expect(mockExecutePhase1).not.toHaveBeenCalled();
     expect(mockExecutePhase2).not.toHaveBeenCalled();
@@ -609,7 +611,7 @@ agents:
     mockReadAWSDeploymentTargets.mockResolvedValue([{ name: 'default', account: '111122223333', region: 'us-east-1' }]);
 
     const { handleImport } = await import('../actions.js');
-    await handleImport({ source: yamlPath });
+    await handleImport({ source: yamlPath, yes: true });
 
     expect(mockReadDeployedState).not.toHaveBeenCalled();
     expect(mockWriteDeployedState).not.toHaveBeenCalled();
@@ -627,7 +629,7 @@ agents:
     mockReadAWSDeploymentTargets.mockResolvedValue([{ name: 'default', account: '111122223333', region: 'us-east-1' }]);
 
     const { handleImport } = await import('../actions.js');
-    await handleImport({ source: yamlPath });
+    await handleImport({ source: yamlPath, yes: true });
 
     expect(mockSetupPythonProject).not.toHaveBeenCalled();
   });
@@ -644,7 +646,7 @@ agents:
     mockReadAWSDeploymentTargets.mockResolvedValue([{ name: 'default', account: '111122223333', region: 'us-east-1' }]);
 
     const { handleImport } = await import('../actions.js');
-    const result = await handleImport({ source: yamlPath });
+    const result = await handleImport({ source: yamlPath, yes: true });
 
     expect(result.stackName).toBe('AgentCore-myproject-default');
   });
@@ -721,7 +723,7 @@ agents:
     mockReadAWSDeploymentTargets.mockResolvedValue([]); // No existing targets
 
     const { handleImport } = await import('../actions.js');
-    const result = await handleImport({ source: yamlPath });
+    const result = await handleImport({ source: yamlPath, yes: true });
 
     // No physical IDs means target resolution is skipped entirely.
     // The import succeeds -- config merge + source copy still happen.
@@ -767,7 +769,7 @@ agents:
     mockReadAWSDeploymentTargets.mockResolvedValue([{ name: 'default', account: '111122223333', region: 'us-east-1' }]);
 
     const { handleImport } = await import('../actions.js');
-    const result = await handleImport({ source: yamlPath });
+    const result = await handleImport({ source: yamlPath, yes: true });
 
     expect(result.success).toBe(true);
     expect(result.importedAgents).toEqual([]);
@@ -811,7 +813,7 @@ agents:
     mockReadAWSDeploymentTargets.mockResolvedValue([]); // No existing targets
 
     const { handleImport } = await import('../actions.js');
-    const result = await handleImport({ source: yamlPath });
+    const result = await handleImport({ source: yamlPath, yes: true });
 
     expect(result.success).toBe(true);
     // No physical IDs means target is not written to disk

@@ -279,7 +279,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       mockParseStarterToolkitYaml.mockReturnValue(makeParsedConfig());
       mockConfigIOInstance.readProjectSpec.mockResolvedValue(makeProjectSpec());
 
-      const result = await handleImport({ source: '/tmp/config.yaml' });
+      const result = await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(result.success).toBe(true);
       expect(result.importedAgents).toContain('my-agent');
@@ -297,7 +297,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       mockParseStarterToolkitYaml.mockReturnValue(makeParsedConfig());
       mockConfigIOInstance.readProjectSpec.mockResolvedValue(makeProjectSpec());
 
-      const result = await handleImport({ source: '/tmp/config.yaml' });
+      const result = await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(result.success).toBe(true);
       expect(mockExecutePhase1).toHaveBeenCalledTimes(1);
@@ -308,7 +308,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       mockParseStarterToolkitYaml.mockReturnValue(makeParsedConfig());
       mockConfigIOInstance.readProjectSpec.mockResolvedValue(makeProjectSpec());
 
-      await handleImport({ source: '/tmp/config.yaml' });
+      await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(mockExecutePhase2).toHaveBeenCalledTimes(1);
       const phase2Options = mockExecutePhase2.mock.calls[0]![0];
@@ -323,7 +323,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       mockParseStarterToolkitYaml.mockReturnValue(makeParsedConfig());
       mockConfigIOInstance.readProjectSpec.mockResolvedValue(makeProjectSpec());
 
-      await handleImport({ source: '/tmp/config.yaml' });
+      await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(mockConfigIOInstance.writeDeployedState).toHaveBeenCalledTimes(1);
       const state = mockConfigIOInstance.writeDeployedState.mock.calls[0]![0];
@@ -346,6 +346,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       const progressMessages: string[] = [];
       const result = await handleImport({
         source: '/tmp/config.yaml',
+        yes: true,
         onProgress: msg => progressMessages.push(msg),
       });
 
@@ -361,7 +362,7 @@ describe('Import Idempotency (Test Group 7)', () => {
         makeProjectSpec([{ name: 'my-agent' }], [{ name: 'my-memory' }])
       );
 
-      await handleImport({ source: '/tmp/config.yaml' });
+      await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(mockConfigIOInstance.writeProjectSpec).toHaveBeenCalledTimes(1);
       const writtenSpec = mockConfigIOInstance.writeProjectSpec.mock.calls[0]![0];
@@ -375,7 +376,7 @@ describe('Import Idempotency (Test Group 7)', () => {
         makeProjectSpec([{ name: 'my-agent' }], [{ name: 'my-memory' }])
       );
 
-      const result = await handleImport({ source: '/tmp/config.yaml' });
+      const result = await handleImport({ source: '/tmp/config.yaml', yes: true });
       expect(result.success).toBe(true);
 
       // After the fix: when all agents/memories already exist in the project,
@@ -393,7 +394,7 @@ describe('Import Idempotency (Test Group 7)', () => {
         makeProjectSpec([{ name: 'my-agent' }], [{ name: 'my-memory' }])
       );
 
-      const result = await handleImport({ source: '/tmp/config.yaml' });
+      const result = await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(result.success).toBe(true);
       expect(result.importedAgents).toEqual([]);
@@ -429,7 +430,7 @@ describe('Import Idempotency (Test Group 7)', () => {
         makeProjectSpec([{ name: 'my-agent' }], [{ name: 'my-memory' }])
       );
 
-      const result = await handleImport({ source: '/tmp/config.yaml' });
+      const result = await handleImport({ source: '/tmp/config.yaml', yes: true });
       expect(result.success).toBe(true);
 
       // No Phase 2 was run, so writeDeployedState should NOT be called
@@ -499,6 +500,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       const progressMessages: string[] = [];
       const result = await handleImport({
         source: '/tmp/config.yaml',
+        yes: true,
         onProgress: msg => progressMessages.push(msg),
       });
 
@@ -535,6 +537,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       const progressMessages: string[] = [];
       await handleImport({
         source: '/tmp/config.yaml',
+        yes: true,
         onProgress: msg => progressMessages.push(msg),
       });
 
@@ -554,7 +557,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       mockExistsSync.mockReturnValue(true);
       mockReaddirSync.mockReturnValue([{ name: 'main.py', isDirectory: () => false, isSymbolicLink: () => false }]);
 
-      await handleImport({ source: '/tmp/config.yaml' });
+      await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       // On first import, the agent is new so source copy runs
       expect(mockCopyFileSync).toHaveBeenCalled();
@@ -564,7 +567,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       mockParseStarterToolkitYaml.mockReturnValue(makeParsedConfig());
       mockConfigIOInstance.readProjectSpec.mockResolvedValue(makeProjectSpec());
 
-      await handleImport({ source: '/tmp/config.yaml' });
+      await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(mockSetupPythonProject).toHaveBeenCalledTimes(1);
     });
@@ -594,7 +597,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       );
       mockConfigIOInstance.readProjectSpec.mockResolvedValue(makeProjectSpec([{ name: 'my-agent' }]));
 
-      const result = await handleImport({ source: '/tmp/config.yaml' });
+      const result = await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(result.success).toBe(true);
       expect(mockExecutePhase1).not.toHaveBeenCalled();
@@ -610,7 +613,7 @@ describe('Import Idempotency (Test Group 7)', () => {
       });
       mockConfigIOInstance.readProjectSpec.mockResolvedValue(makeProjectSpec());
 
-      const result = await handleImport({ source: '/tmp/config.yaml' });
+      const result = await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No agents found');
@@ -619,7 +622,7 @@ describe('Import Idempotency (Test Group 7)', () => {
     it('returns error when no project found', async () => {
       mockFindConfigRoot.mockReturnValue(null);
 
-      const result = await handleImport({ source: '/tmp/config.yaml' });
+      const result = await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No agentcore project found');
@@ -638,7 +641,7 @@ describe('Import Idempotency (Test Group 7)', () => {
         makeProjectSpec([{ name: 'my-agent' }], [{ name: 'my-memory' }])
       );
 
-      await handleImport({ source: '/tmp/config.yaml' });
+      await handleImport({ source: '/tmp/config.yaml', yes: true });
 
       expect(mockConfigIOInstance.writeAWSDeploymentTargets).not.toHaveBeenCalled();
     });

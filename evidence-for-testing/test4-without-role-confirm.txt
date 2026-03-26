@@ -1,0 +1,31 @@
+[32m[done][0m  Using existing project: importroletest
+[32m[done][0m  Parsing ../test-without-role.yaml...
+[32m[done][0m  Found 1 agent(s), 0 memory(ies), 0 credential(s)
+
+The following resources will be imported:
+
+  Agents:
+    - my_basic_agent (CodeZip)
+
+Proceed with import? [y/N]: [32m[done][0m  Merging into existing project...
+[32m[done][0m  Creating minimal pyproject.toml at /Users/ajesstur/migrationbugbash/import-role-feature/e2e-test-project/importroletest/app/my_basic_agent
+[32m[done][0m  Setting up Python environment for my_basic_agent...
+[32m[done][0m  Python environment ready for my_basic_agent
+[32m[done][0m  No deployed resources found to import (no agent_id or memory_id in YAML). Run `agentcore deploy` to create new resources.
+
+[32mImport complete![0m
+
+[2mImported:[0m
+  Stack: AgentCore-importroletest-default
+
+To continue:
+
+  [36magentcore deploy[0m     [2mDeploy the imported stack[0m
+  [36magentcore status[0m     [2mVerify resource status[0m
+  [36magentcore invoke[0m     [2mTest your agent[0m
+
+Log: agentcore/.cli/logs/import/import-20260326-125118.log
+
+[33mUpdate available:[0m 0.3.0-e2e.1774543757 → [36m0.3.0-preview.8.0[0m
+Run [36m`npm install -g @aws/agentcore@latest`[0m to update.
+[?25h
