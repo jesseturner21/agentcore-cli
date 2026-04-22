@@ -580,6 +580,8 @@ export type GatewayPolicyEngineConfiguration = z.infer<typeof GatewayPolicyEngin
 export const AgentCoreGatewaySchema = z
   .object({
     name: GatewayNameSchema,
+    /** Actual AWS resource name for imported gateways. When set, CDK uses this instead of generating projectName-name. */
+    resourceName: z.string().optional(),
     description: z.string().optional(),
     targets: z.array(AgentCoreGatewayTargetSchema),
     /** Authorization type for the gateway. Defaults to 'NONE'. */
@@ -592,6 +594,8 @@ export const AgentCoreGatewaySchema = z
     exceptionLevel: GatewayExceptionLevelSchema.default('NONE'),
     /** Policy engine configuration for Cedar-based authorization of tool calls. */
     policyEngineConfiguration: GatewayPolicyEngineConfigurationSchema.optional(),
+    /** ARN of an existing IAM execution role. When set, CDK uses this role instead of creating a new one. */
+    executionRoleArn: z.string().optional(),
     tags: TagsSchema.optional(),
   })
   .strict()
