@@ -8,6 +8,7 @@ InvokeHarness is not yet in standard boto3.
 import json
 import os
 import sys
+import time
 import uuid
 
 import boto3
@@ -16,17 +17,25 @@ from botocore.loaders import Loader
 
 from harness_config import REGION, MODEL_ID, harness_arn
 
+# ANSI color codes
+CYAN = "\033[36m"
+YELLOW = "\033[33m"
+GREEN = "\033[32m"
+RED = "\033[31m"
+DIM = "\033[2m"
+RESET = "\033[0m"
+
 PR_URL = os.environ.get("PR_URL")
 if not PR_URL:
-    print("ERROR: PR_URL environment variable is required", file=sys.stderr)
+    print(f"{RED}ERROR: PR_URL environment variable is required{RESET}", file=sys.stderr)
     sys.exit(1)
 
 HARNESS_ARN = harness_arn()
 SESSION_ID = str(uuid.uuid4()).upper()
 
-print(f"Session: {SESSION_ID}")
-print(f"PR: {PR_URL}")
-print(f"Harness: {HARNESS_ARN}")
+print(f"{CYAN}Session:{RESET} {SESSION_ID}")
+print(f"{CYAN}PR:{RESET}      {PR_URL}")
+print(f"{CYAN}Harness:{RESET} {HARNESS_ARN}")
 print()
 
 # Register the local data plane model with Boto3
@@ -99,9 +108,12 @@ response = client.invoke_harness(
 )
 
 # Stream event handling
+start_time = time.time()
 iteration = 0
 current_tool_name = None
 current_tool_input = ""
+tool_start_time = 0.0
+in_tool_group = False
 
 for event in response["stream"]:
     if "contentBlockStart" in event:
@@ -109,6 +121,7 @@ for event in response["stream"]:
         if "toolUse" in start:
             current_tool_name = start["toolUse"].get("name", "unknown")
             current_tool_input = ""
+            tool_start_time = time.time()
             iteration += 1
 
     elif "contentBlockDelta" in event:
@@ -120,24 +133,55 @@ for event in response["stream"]:
 
     elif "contentBlockStop" in event:
         if current_tool_name:
+            elapsed = time.time() - tool_start_time
             try:
                 parsed = json.loads(current_tool_input)
             except (json.JSONDecodeError, TypeError):
                 parsed = current_tool_input
+
+            # Close previous tool group if open
+            if in_tool_group:
+                print("::endgroup::", flush=True)
+
+            # Format tool call header
             if isinstance(parsed, dict) and "command" in parsed:
-                print(f"\n[{iteration}] {current_tool_name}: $ {parsed['command']}", flush=True)
+                header = f"{CYAN}[{iteration}]{RESET} {YELLOW}{current_tool_name}{RESET} {DIM}({elapsed:.1f}s){RESET}: $ {parsed['command']}"
             else:
-                print(f"\n[{iteration}] {current_tool_name}", flush=True)
+                header = f"{CYAN}[{iteration}]{RESET} {YELLOW}{current_tool_name}{RESET} {DIM}({elapsed:.1f}s){RESET}"
+
+            print(f"\n::group::{header}", flush=True)
+            in_tool_group = True
+
+            # Print tool input details inside the group
+            if isinstance(parsed, dict):
+                for k, v in parsed.items():
+                    if k == "command":
+                        continue
+                    v_str = str(v)[:300]
+                    print(f"  {DIM}{k}:{RESET} {v_str}", flush=True)
+
         current_tool_name = None
         current_tool_input = ""
 
     elif "messageStop" in event:
+        if in_tool_group:
+            print("::endgroup::", flush=True)
+            in_tool_group = False
         reason = event["messageStop"].get("stopReason", "")
         if reason == "end_turn":
-            print("\n--- Done ---", flush=True)
+            total = time.time() - start_time
+            minutes = int(total // 60)
+            seconds = int(total % 60)
+            print(f"\n{GREEN}--- Done ({minutes}m {seconds}s) ---{RESET}", flush=True)
 
     elif "internalServerException" in event:
-        print(f"\nERROR: {event['internalServerException']}", file=sys.stderr)
+        if in_tool_group:
+            print("::endgroup::", flush=True)
+        print(f"\n{RED}ERROR: {event['internalServerException']}{RESET}", file=sys.stderr)
         sys.exit(1)
 
-print("\nReview complete.")
+if in_tool_group:
+    print("::endgroup::", flush=True)
+
+total = time.time() - start_time
+print(f"\n{GREEN}Review complete.{RESET} {DIM}({iteration} tool calls, {int(total)}s total){RESET}")
