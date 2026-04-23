@@ -114,6 +114,7 @@ current_tool_name = None
 current_tool_input = ""
 tool_start_time = 0.0
 in_tool_group = False
+had_text_output = False
 
 for event in response["stream"]:
     if "contentBlockStart" in event:
@@ -127,7 +128,13 @@ for event in response["stream"]:
     elif "contentBlockDelta" in event:
         delta = event["contentBlockDelta"].get("delta", {})
         if "text" in delta:
-            print(delta["text"], end="", flush=True)
+            # Close tool group before printing reasoning text
+            if in_tool_group:
+                print("::endgroup::", flush=True)
+                in_tool_group = False
+                print(flush=True)
+            print(f"{DIM}{delta['text']}{RESET}", end="", flush=True)
+            had_text_output = True
         if "toolUse" in delta:
             current_tool_input += delta["toolUse"].get("input", "")
 
@@ -142,6 +149,12 @@ for event in response["stream"]:
             # Close previous tool group if open
             if in_tool_group:
                 print("::endgroup::", flush=True)
+                in_tool_group = False
+
+            # Add spacing after reasoning text
+            if had_text_output:
+                print("\n", flush=True)
+                had_text_output = False
 
             # Format tool call header
             if isinstance(parsed, dict) and "command" in parsed:
@@ -149,7 +162,7 @@ for event in response["stream"]:
             else:
                 header = f"{CYAN}[{iteration}]{RESET} {YELLOW}{current_tool_name}{RESET} {DIM}({elapsed:.1f}s){RESET}"
 
-            print(f"\n::group::{header}", flush=True)
+            print(f"::group::{header}", flush=True)
             in_tool_group = True
 
             # Print tool input details inside the group
@@ -172,7 +185,9 @@ for event in response["stream"]:
             total = time.time() - start_time
             minutes = int(total // 60)
             seconds = int(total % 60)
-            print(f"\n{GREEN}--- Done ({minutes}m {seconds}s) ---{RESET}", flush=True)
+            print(f"\n\n{GREEN}{'=' * 50}", flush=True)
+            print(f"  Done ({minutes}m {seconds}s)", flush=True)
+            print(f"{'=' * 50}{RESET}", flush=True)
 
     elif "internalServerException" in event:
         if in_tool_group:
