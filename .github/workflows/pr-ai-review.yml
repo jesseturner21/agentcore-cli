@@ -19,31 +19,48 @@ jobs:
   ai-review:
     runs-on: ubuntu-latest
     steps:
-      - name: Check team membership
+      - name: Check authorization
         id: auth
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v8
         with:
           script: |
             const user = context.payload.pull_request.user.login;
-            const org = context.repo.owner;
             try {
+              // Try team membership first (works for org repos)
               await github.rest.teams.getMembershipForUserInOrg({
-                org,
+                org: context.repo.owner,
                 team_slug: 'agentcore-cli-devs',
                 username: user,
               });
               console.log(`${user} is a member of agentcore-cli-devs`);
               core.setOutput('authorized', 'true');
-            } catch (error) {
-              console.log(`${user} is not a member of agentcore-cli-devs (${error.status}) — skipping review`);
-              core.setOutput('authorized', 'false');
+            } catch (teamError) {
+              // Fall back to collaborator write access (works for personal repos)
+              try {
+                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username: user,
+                });
+                const hasWriteAccess = ['write', 'admin'].includes(data.permission);
+                if (hasWriteAccess) {
+                  console.log(`${user} has write access (${data.permission})`);
+                  core.setOutput('authorized', 'true');
+                } else {
+                  console.log(`${user} does not have write access (${data.permission}) — skipping review`);
+                  core.setOutput('authorized', 'false');
+                }
+              } catch (collabError) {
+                console.log(`${user} authorization check failed (${collabError.status}) — skipping review`);
+                core.setOutput('authorized', 'false');
+              }
             }
 
       - name: Skip if not authorized
         if: github.event_name == 'pull_request' && steps.auth.outputs.authorized != 'true'
         run: |
-          echo "PR author is not in agentcore-cli-devs team. Skipping AI review."
+          echo "PR author is not authorized. Skipping AI review."
           exit 0
 
       - name: Determine PR URL
