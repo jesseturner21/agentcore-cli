@@ -1,4 +1,4 @@
-name: PR AI Review
+name: AgentCore Harness Reviewing
 
 on:
   pull_request:
