@@ -322,6 +322,9 @@ describe('handleImportGateway', () => {
     });
 
     it('uses --name override with original resourceName preserved', async () => {
+      const roleArn = 'arn:aws:iam::123456789012:role/my-role';
+      mockGetGatewayDetail.mockResolvedValue(makeGatewayDetail({ roleArn }));
+
       const result = await handleImportGateway({ arn: GATEWAY_ARN, name: 'myCustomName' });
 
       expect(result.success).toBe(true);
@@ -331,6 +334,7 @@ describe('handleImportGateway', () => {
       const addedGateway = writtenSpec.agentCoreGateways[0];
       expect(addedGateway.name).toBe('myCustomName');
       expect(addedGateway.resourceName).toBe(GATEWAY_NAME);
+      expect(addedGateway.executionRoleArn).toBe(roleArn);
     });
   });
 

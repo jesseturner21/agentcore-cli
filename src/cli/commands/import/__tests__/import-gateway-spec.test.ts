@@ -240,11 +240,19 @@ describe('toGatewaySpec – policy engine', () => {
 // ============================================================================
 
 describe('toGatewaySpec – other fields', () => {
-  it('resourceName is always set to gateway.name', () => {
-    const gw = makeGateway({ name: 'AwsGatewayName' });
+  it('resourceName is set to gateway.name when roleArn is present', () => {
+    const gw = makeGateway({ name: 'AwsGatewayName', roleArn: 'arn:aws:iam::123456789012:role/my-role' });
     const result = toGatewaySpec(gw, emptyTargets, 'local_name');
 
     expect(result.resourceName).toBe('AwsGatewayName');
+    expect(result.name).toBe('local_name');
+  });
+
+  it('resourceName is omitted when roleArn is absent', () => {
+    const gw = makeGateway({ name: 'AwsGatewayName' });
+    const result = toGatewaySpec(gw, emptyTargets, 'local_name');
+
+    expect(result).not.toHaveProperty('resourceName');
     expect(result.name).toBe('local_name');
   });
 

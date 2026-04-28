@@ -278,7 +278,7 @@ export function toGatewaySpec(
 
   return {
     name: localName,
-    resourceName: gateway.name,
+    ...(gateway.roleArn && { resourceName: gateway.name }),
     ...(gateway.description && { description: gateway.description }),
     targets,
     authorizerType,
