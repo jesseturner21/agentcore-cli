@@ -116,6 +116,14 @@ export function validateAddAgentOptions(options: AddAgentOptions): ValidationRes
   }
   options.protocol = protocolResult.data;
 
+  // TypeScript only supports HTTP today; MCP and A2A templates have not been authored yet
+  if (protocolResult.data !== 'HTTP' && options.language === 'TypeScript') {
+    return {
+      valid: false,
+      error: `${protocolResult.data} protocol is not yet supported for TypeScript. Use --protocol HTTP or --language Python.`,
+    };
+  }
+
   const isByoPath = options.type === 'byo';
   const isImportPath = options.type === 'import';
 
@@ -236,11 +244,14 @@ export function validateAddAgentOptions(options: AddAgentOptions): ValidationRes
       return { valid: false, error: '--code-location is required for BYO path' };
     }
   } else {
-    if (options.language === 'TypeScript') {
-      return { valid: false, error: 'Create path only supports Python (TypeScript templates not yet available)' };
-    }
     if (options.language === 'Other') {
-      return { valid: false, error: 'Create path only supports Python' };
+      return { valid: false, error: 'Create path only supports Python or TypeScript' };
+    }
+    if (options.language === 'TypeScript' && options.framework && options.framework !== 'Strands') {
+      return {
+        valid: false,
+        error: `Framework ${options.framework} is not yet available for TypeScript. Only Strands is supported.`,
+      };
     }
 
     if (!options.memory) {
